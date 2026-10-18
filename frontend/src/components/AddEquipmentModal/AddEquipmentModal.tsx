@@ -1,7 +1,53 @@
 import { useState } from "react";
 import { Button } from "../Button/Button";
 import { Icon } from "../Icon/Icon";
-import jsonIcon from '../../assets/icons8-json-48.png';
+import jsonIcon from "../../assets/icons8-json-48.png";
+
+const sessionIdKey = "cold-chain-session-id";
+const equipmentStorageKey = "equipamentos";
+
+type SessionEquipment = {
+  nome: string;
+  serial: string;
+  telemetria: unknown;
+};
+
+function getSessionId() {
+  const currentSessionId = sessionStorage.getItem(sessionIdKey);
+  if (currentSessionId) {
+    return currentSessionId;
+  }
+
+  const newSessionId = crypto.randomUUID();
+  sessionStorage.setItem(sessionIdKey, newSessionId);
+  return newSessionId;
+}
+
+function isSessionEquipment(value: unknown): value is SessionEquipment {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "nome" in value &&
+    typeof value.nome === "string" &&
+    "serial" in value &&
+    typeof value.serial === "string" &&
+    "telemetria" in value
+  );
+}
+
+function parseEquipmentList(value: unknown): SessionEquipment[] {
+  if (
+    typeof value !== "object" ||
+    value === null ||
+    !("equipamentos" in value) ||
+    !Array.isArray(value.equipamentos) ||
+    !value.equipamentos.every(isSessionEquipment)
+  ) {
+    throw new Error("O servidor retornou uma lista de equipamentos inválida.");
+  }
+
+  return value.equipamentos;
+}
 
 type AddEquipmentModalProps = {
   close: () => void;
@@ -12,6 +58,7 @@ export function AddEquipmentModal({ close, notify }: Readonly<AddEquipmentModalP
   const [name, setName] = useState("");
   const [serial, setSerial] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const selectedFile = event.target.files?.[0];
@@ -20,44 +67,56 @@ export function AddEquipmentModal({ close, notify }: Readonly<AddEquipmentModalP
     }
   }
 
-async function submit() {
-    if (!name || !serial) {
+  async function submit() {
+    if (submitting) {
+      return;
+    }
+
+    if (!name.trim() || !serial.trim()) {
       notify("Preencha o nome e o número de série.");
       return;
     }
 
-    // Se o utilizador anexou um ficheiro, enviamos para o Python
-    if (file) {
-      notify(`A processar o ficheiro ${file.name}...`);
-      
+    setSubmitting(true);
+    notify(file ? `A processar o ficheiro ${file.name}...` : `Cadastrando ${name}...`);
+
+    try {
       const formData = new FormData();
-      formData.append("file", file);
-
-      try {
-        // Bate na porta do seu backend Python
-        const resposta = await fetch("http://localhost:8000/analisar-equipamento", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (resposta.ok) {
-          const dadosCalculados = await resposta.json();
-          // Imprime o resultado no F12 (Console) para podermos ver a magia a acontecer!
-          console.log("Resposta do Python recebida:", dadosCalculados); 
-          notify(`${name} adicionado com sucesso e dados históricos processados!`);
-        } else {
-          notify(`Erro ao analisar ficheiro: o servidor recusou os dados.`);
-        }
-      } catch (error) {
-        console.error("Erro de comunicação:", error);
-        notify("Falha ao contactar o servidor Python. Verifique se ele está a correr.");
+      formData.append("nome", name.trim());
+      formData.append("serial", serial.trim());
+      if (file) {
+        formData.append("file", file);
       }
-    } else {
-      // Caso normal: Adiciona o equipamento sem base de dados histórica
-      notify(`${name} foi adicionado e aguarda a primeira conexão.`);
-    }
 
-    close();
+      const resposta = await fetch("http://localhost:8000/equipamentos", {
+        method: "POST",
+        headers: { "X-Session-ID": getSessionId() },
+        body: formData,
+      });
+
+      if (!resposta.ok) {
+        notify(
+          resposta.status === 409
+            ? "Já existe um equipamento com esse número de série nesta sessão."
+            : `Não foi possível cadastrar o equipamento (erro ${resposta.status}).`,
+        );
+        return;
+      }
+
+      const equipamentos = parseEquipmentList(await resposta.json());
+      sessionStorage.setItem(equipmentStorageKey, JSON.stringify(equipamentos));
+      notify(
+        file
+          ? `${name} adicionado com sucesso e dados históricos processados!`
+          : `${name} foi adicionado e aguarda a primeira conexão.`,
+      );
+      close();
+    } catch (error) {
+      console.error("Erro ao cadastrar equipamento:", error);
+      notify("Falha ao comunicar com o servidor ou salvar os dados nesta sessão.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -94,7 +153,7 @@ async function submit() {
         </div>
         <div className="modal-actions">
           <Button onClick={close}>Cancelar</Button>
-          <Button variant="primary" onClick={submit}><Icon name="plus" />Adicionar dispositivo</Button>
+          <Button variant="primary" onClick={submit} disabled={submitting}><Icon name="plus" />Adicionar dispositivo</Button>
         </div>
       </div>
     </div>

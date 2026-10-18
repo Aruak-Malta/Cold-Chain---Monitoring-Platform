@@ -1,51 +1,95 @@
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-import pandas as pd
 import json
 
-app = FastAPI()
+import pandas as pd
+from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
-# Isto permite que o seu Frontend (React) consiga comunicar com o Backend (Python) sem bloqueios de segurança
+app = FastAPI()
+equipamentos_por_sessao: dict[str, dict[str, dict]] = {}
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # No MVP deixamos aberto, depois restringe-se ao localhost do React
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-@app.post("/analisar-equipamento")
-async def analisar_dados_json(file: UploadFile = File(...)):
-    """
-    Esta função recebe o ficheiro JSON que você enviar pelo React.
-    """
-    # 1. Lemos o conteúdo do ficheiro carregado
-    conteudo = await file.read()
+
+def analisar_conteudo_json(conteudo: bytes) -> dict:
     dados_json = json.loads(conteudo)
-    
-    # 2. Transformamos o JSON numa tabela (DataFrame) usando o Pandas
-    # Assumimos que o JSON tem uma lista de leituras (ex: temperatura, corrente, timestamp)
-    df = pd.DataFrame(dados_json)
-    
-    # 3. Fazemos algumas análises básicas do MVP
-    # (Exemplo: Média da temperatura, pico de corrente elétrica, etc.)
+    if not isinstance(dados_json, (list, dict)):
+        raise ValueError("O JSON precisa conter uma lista ou um objeto.")
+
+    registros = dados_json if isinstance(dados_json, list) else [dados_json]
+    df = pd.DataFrame(registros)
     resumo = {
-        "temperatura_media": df['temperatura'].mean() if 'temperatura' in df else 0,
-        "corrente_maxima": df['corrente'].max() if 'corrente' in df else 0,
-        "total_leituras": len(df)
+        "temperatura_media": df["temperatura"].mean() if "temperatura" in df else 0,
+        "corrente_maxima": df["corrente"].max() if "corrente" in df else 0,
+        "total_leituras": len(df),
     }
-    
-    # 4. Preparamos os dados para os gráficos do React
-    # O React costuma precisar de listas (arrays) para desenhar gráficos
     dados_grafico = {
-        "tempos": df['timestamp'].tolist() if 'timestamp' in df else [],
-        "temperaturas": df['temperatura'].tolist() if 'temperatura' in df else [],
-        "correntes": df['corrente'].tolist() if 'corrente' in df else []
+        "tempos": df["timestamp"].tolist() if "timestamp" in df else [],
+        "temperaturas": df["temperatura"].tolist() if "temperatura" in df else [],
+        "correntes": df["corrente"].tolist() if "corrente" in df else [],
     }
-    
-    # Devolvemos tudo mastigado para o React mostrar na tela!
     return {
         "mensagem": "Ficheiro processado com sucesso!",
         "resumo_analise": resumo,
-        "dados_graficos": dados_grafico
+        "dados_graficos": dados_grafico,
     }
+
+
+def converter_erro_json(error: Exception) -> HTTPException:
+    return HTTPException(status_code=400, detail=f"JSON inválido: {error}")
+
+
+@app.post("/analisar-equipamento")
+async def analisar_dados_json(file: UploadFile = File(...)):
+    try:
+        return analisar_conteudo_json(await file.read())
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+        raise converter_erro_json(error) from error
+
+
+@app.post("/equipamentos")
+async def cadastrar_equipamento(
+    nome: str = Form(...),
+    serial: str = Form(...),
+    session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),
+    file: UploadFile | None = File(default=None),
+):
+    nome = nome.strip()
+    serial = serial.strip()
+    if not nome or not serial:
+        raise HTTPException(status_code=422, detail="Nome e número de série são obrigatórios.")
+
+    equipamentos = equipamentos_por_sessao.setdefault(session_id, {})
+    chave_serial = serial.casefold()
+    if chave_serial in equipamentos:
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um equipamento com esse número de série nesta sessão.",
+        )
+
+    telemetria = None
+    if file is not None:
+        try:
+            telemetria = analisar_conteudo_json(await file.read())
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
+            raise converter_erro_json(error) from error
+
+    equipamentos[chave_serial] = {
+        "nome": nome,
+        "serial": serial,
+        "telemetria": telemetria,
+    }
+    return {"equipamentos": list(equipamentos.values())}
+
+
+@app.get("/equipamentos")
+async def listar_equipamentos(
+    session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),
+):
+    equipamentos = equipamentos_por_sessao.get(session_id, {})
+    return {"equipamentos": list(equipamentos.values())}

@@ -15,22 +15,17 @@ export function Equipment() {
     equipmentLoadError,
     openEquipment,
     openAddEquipment,
-    notify,
   } = useOutletContext<AppOutletContext>();
   const [status, setStatus] = useState("Todos");
   const [sector, setSector] = useState("Todos os setores");
-  const displayedEquipment = [
-    ...equipment,
-    ...sessionEquipments.map((item, index) => toEquipment(item, index)),
-  ];
+  const uploadedEquipment = sessionEquipments.map((item, index) => toEquipment(item, index));
+  const displayedEquipment = uploadedEquipment.length ? uploadedEquipment : equipment.slice(0, 1);
 
   const filteredEquipment = displayedEquipment.filter((item) => {
     const matchesSearch = `${item.name} ${item.place}`.toLowerCase().includes(search.toLowerCase());
     const matchesStatus =
       status === "Todos" ||
-      (status === "Online" && ["normal", "critical", "warning"].includes(item.status)) ||
-      (status === "Offline" && item.status === "offline") ||
-      (status === "Cadastrados" && ["historical", "registered"].includes(item.status));
+      (status === "Com análise" && item.analysis !== null && item.analysis !== undefined);
     const matchesSector = sector === "Todos os setores" || item.place.includes(sector);
     return matchesSearch && matchesStatus && matchesSector;
   });
@@ -49,7 +44,7 @@ export function Equipment() {
       />
       <div className="toolbar-panel">
         <div className="filter-tabs">
-          {["Todos", "Online", "Offline", "Cadastrados"].map((item) => (
+          {["Todos", "Com análise"].map((item) => (
             <button key={item} className={status === item ? "selected" : ""} onClick={() => setStatus(item)} type="button">
               {item}
             </button>
@@ -61,14 +56,11 @@ export function Equipment() {
             <option>Todos os setores</option><option>Açougue</option><option>Congelados</option><option>Bebidas</option><option>Laticínios</option>
           </select>
         </label>
-        <Button onClick={() => notify("Lista de equipamentos exportada em CSV.")}>
-          <Icon name="file" size="sm" />Exportar lista
-        </Button>
       </div>
       {equipmentLoadError && (
         <div className="empty-state" role="alert">
           <strong>Não foi possível carregar os equipamentos cadastrados.</strong>
-          <span>{equipmentLoadError} Os dados de demonstração continuam disponíveis.</span>
+          <span>{equipmentLoadError}</span>
         </div>
       )}
       <div className="equipment-grid page-equipment-grid">

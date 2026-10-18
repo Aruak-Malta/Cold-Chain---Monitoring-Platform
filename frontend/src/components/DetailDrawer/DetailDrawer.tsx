@@ -9,6 +9,26 @@ type DetailDrawerProps = {
   onClose: () => void;
 };
 
+type ChartMetricKey = "temperatura" | "umidade" | "corrente";
+
+type ChartSeries = {
+  key: ChartMetricKey;
+  label: string;
+  unit: string;
+  values: (number | null)[];
+  latestValue: number | null;
+  minimum: number;
+  maximum: number;
+  path: string;
+  singlePoint: { x: number; y: number } | null;
+};
+
+const chartMetrics: { key: ChartMetricKey; label: string; unit: string }[] = [
+  { key: "temperatura", label: "Temperatura", unit: " °C" },
+  { key: "umidade", label: "Umidade", unit: "%" },
+  { key: "corrente", label: "Corrente", unit: " A" },
+];
+
 function formatMetric(value: number | null | undefined, unit: string) {
   return value === null || value === undefined
     ? "—"
@@ -31,61 +51,97 @@ function formatTime(time: string | null | undefined) {
       });
 }
 
-export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>) {
-  const [period, setPeriod] = useState("24h");
-  const hasSessionRecord = equipment.serial !== undefined;
-  const telemetry = equipment.telemetry;
-  const readings = telemetry?.temperatures.flatMap((temperature, index) =>
-    temperature === null
-      ? []
-      : [{ temperature, time: telemetry.times[index] ?? null }],
-  ) ?? [];
-  const bucketSize = Math.max(1, Math.ceil(readings.length / 120));
-  const chartReadings = Array.from(
-    { length: Math.ceil(readings.length / bucketSize) },
-    (_, bucketIndex) => {
-      const bucket = readings.slice(bucketIndex * bucketSize, (bucketIndex + 1) * bucketSize);
-      return {
-        temperature: bucket.reduce((sum, reading) => sum + reading.temperature, 0) / bucket.length,
-        time: bucket[0].time,
-      };
-    },
-  );
-  const chartValues = chartReadings.map((reading) => reading.temperature);
-  const rawValues = readings.map((reading) => reading.temperature);
-  const dataMinimum = rawValues.length ? Math.min(...rawValues) : 0;
-  const dataMaximum = rawValues.length ? Math.max(...rawValues) : 0;
-  const dataRange = dataMaximum - dataMinimum;
-  const chartPadding = dataRange === 0 ? Math.max(Math.abs(dataMaximum) * 0.1, 1) : dataRange * 0.12;
-  const chartMinimum = dataMinimum - chartPadding;
-  const chartMaximum = dataMaximum + chartPadding;
-  const chartRange = chartMaximum - chartMinimum;
-  const chartPoints = chartValues.map((temperature, index) => ({
-    x: chartReadings.length === 1 ? 280 : (index / (chartReadings.length - 1)) * 560,
-    y: 185 - ((temperature - chartMinimum) / chartRange) * 165,
-  }));
-  const temperaturePath = chartPoints.reduce((path, point, index) => {
-    if (index === 0) {
-      return `M${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+function buildChartSeries(
+  metric: { key: ChartMetricKey; label: string; unit: string },
+  values: (number | null)[],
+): ChartSeries {
+  const validValues = values.filter((value): value is number => value !== null && Number.isFinite(value));
+  const minimum = validValues.length ? Math.min(...validValues) : 0;
+  const maximum = validValues.length ? Math.max(...validValues) : 0;
+  const range = maximum - minimum;
+  const padding = range === 0 ? Math.max(Math.abs(maximum) * 0.1, 1) : range * 0.12;
+  const chartMinimum = minimum - padding;
+  const chartRange = maximum - minimum + padding * 2;
+  const points = values.map((value, index) => value === null || !Number.isFinite(value)
+    ? null
+    : {
+        x: values.length <= 1 ? 280 : (index / (values.length - 1)) * 560,
+        y: 185 - ((value - chartMinimum) / chartRange) * 165,
+      });
+
+  let path = "";
+  let segment: { x: number; y: number }[] = [];
+  const appendSegment = () => {
+    if (!segment.length) {
+      return;
     }
 
-    const previous = chartPoints[index - 1];
-    const midpointX = (previous.x + point.x) / 2;
-    const midpointY = (previous.y + point.y) / 2;
-    return `${path} Q${previous.x.toFixed(1)} ${previous.y.toFixed(1)} ${midpointX.toFixed(1)} ${midpointY.toFixed(1)}`;
-  }, "");
-  const finalPoint = chartPoints[chartPoints.length - 1];
-  const smoothTemperaturePath = finalPoint
-    ? `${temperaturePath} T${finalPoint.x.toFixed(1)} ${finalPoint.y.toFixed(1)}`
-    : "";
-  const temperatureFill = smoothTemperaturePath
-    ? `${smoothTemperaturePath} L560 210 L0 210 Z`
-    : "";
-  const timeLabels = chartReadings.length > 1
+    let segmentPath = `M${segment[0].x.toFixed(1)} ${segment[0].y.toFixed(1)}`;
+    for (let index = 1; index < segment.length; index += 1) {
+      const previous = segment[index - 1];
+      const current = segment[index];
+      const midpointX = (previous.x + current.x) / 2;
+      const midpointY = (previous.y + current.y) / 2;
+      segmentPath += ` Q${previous.x.toFixed(1)} ${previous.y.toFixed(1)} ${midpointX.toFixed(1)} ${midpointY.toFixed(1)}`;
+    }
+    if (segment.length > 1) {
+      const finalPoint = segment[segment.length - 1];
+      segmentPath += ` T${finalPoint.x.toFixed(1)} ${finalPoint.y.toFixed(1)}`;
+    }
+    path += segmentPath;
+    segment = [];
+  };
+
+  points.forEach((point) => {
+    if (point) {
+      segment.push(point);
+    } else {
+      appendSegment();
+    }
+  });
+  appendSegment();
+
+  const lastValue = [...values].reverse().find(
+    (value): value is number => value !== null && Number.isFinite(value),
+  ) ?? null;
+
+  return {
+    ...metric,
+    values,
+    latestValue: lastValue,
+    minimum,
+    maximum,
+    path,
+    singlePoint: validValues.length === 1 ? points.find((point) => point !== null) ?? null : null,
+  };
+}
+
+export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>) {
+  const [period, setPeriod] = useState("24h");
+  const [selectedMetric, setSelectedMetric] = useState<ChartMetricKey>("temperatura");
+  const hasSessionRecord = equipment.serial !== undefined;
+  const telemetry = equipment.telemetry;
+  const chartSeries = telemetry
     ? [
-        chartReadings[0].time,
-        chartReadings[Math.floor((chartReadings.length - 1) / 2)].time,
-        chartReadings[chartReadings.length - 1].time,
+        buildChartSeries(chartMetrics[0], telemetry.temperaturesSmoothed),
+        buildChartSeries(chartMetrics[1], telemetry.humiditiesSmoothed),
+        buildChartSeries(chartMetrics[2], telemetry.currentsSmoothed),
+      ]
+    : [];
+  const availableSeries = chartSeries.filter((series) => series.values.some(
+    (value) => value !== null && Number.isFinite(value),
+  ));
+  const activeSeries = availableSeries.find((series) => series.key === selectedMetric)
+    ?? availableSeries[0]
+    ?? null;
+  const orderedChartSeries = [...chartSeries].sort(
+    (left, right) => Number(left.key === activeSeries?.key) - Number(right.key === activeSeries?.key),
+  );
+  const timeLabels = telemetry && telemetry.times.length > 1
+    ? [
+        telemetry.times[0],
+        telemetry.times[Math.floor((telemetry.times.length - 1) / 2)],
+        telemetry.times[telemetry.times.length - 1],
       ]
     : [];
   const healthText = equipment.health === null
@@ -95,11 +151,15 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
       : "Boa condição";
   const healthDetail = equipment.health === null
     ? hasSessionRecord
-      ? `${telemetry?.readingCount ?? 0} leituras · Série ${equipment.serial}`
+      ? equipment.analysis
+        ? `${equipment.analysis.saude.status_geral} · ${telemetry?.readingCount ?? 0} leituras`
+        : `${telemetry?.readingCount ?? 0} leituras · Série ${equipment.serial}`
       : "Não há informação de saúde disponível."
-    : equipment.health < 70
-      ? "Queda de 12 pontos nos últimos 30 dias."
-      : "Operação estável nos últimos 30 dias.";
+    : equipment.analysis
+      ? equipment.analysis.saude.status_geral
+      : equipment.health < 70
+        ? "Queda de 12 pontos nos últimos 30 dias."
+        : "Operação estável nos últimos 30 dias.";
 
   return (
     <div className="drawer-layer">
@@ -156,25 +216,51 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             ))}
           </div>
         </div>
+        {telemetry && (
+          <div className="chart-legend" aria-label="Séries do gráfico">
+            {chartSeries.map((series) => {
+              const hasValues = availableSeries.some((available) => available.key === series.key);
+              return (
+                <button
+                  className={`chart-legend-item chart-series-${series.key}${activeSeries?.key === series.key ? " is-selected" : ""}${hasValues ? "" : " is-unavailable"}`}
+                  type="button"
+                  key={series.key}
+                  aria-pressed={activeSeries?.key === series.key}
+                  disabled={!hasValues}
+                  onClick={() => setSelectedMetric(series.key)}
+                >
+                  <span className="chart-legend-marker" />
+                  <span className="chart-legend-copy">
+                    <strong>{series.label}</strong>
+                    <small>{formatMetric(series.latestValue, series.unit)}</small>
+                  </span>
+                </button>
+              );
+            })}
+            <span className="chart-legend-note">Escalas independentes</span>
+          </div>
+        )}
         <div className="detail-chart">
           {hasSessionRecord && !telemetry ? (
             <div className="telemetry-empty">
               <strong>Nenhuma telemetria disponível</strong>
               <span>Envie um JSON com leituras para visualizar o histórico.</span>
             </div>
-          ) : hasSessionRecord && !smoothTemperaturePath ? (
+          ) : hasSessionRecord && !availableSeries.length ? (
             <div className="telemetry-empty">
-              <strong>Sem leituras de temperatura para exibir</strong>
-              <span>O arquivo não contém valores numéricos na coluna temperatura.</span>
+              <strong>Sem leituras numéricas para exibir</strong>
+              <span>O arquivo não contém valores numéricos de temperatura, umidade ou corrente.</span>
             </div>
           ) : (
             <>
               {telemetry ? (
-                <div className="chart-labels">
-                  <span>{formatMetric(chartMaximum, "°")}</span>
-                  <span>{formatMetric((chartMaximum + chartMinimum) / 2, "°")}</span>
-                  <span>{formatMetric(chartMinimum, "°")}</span>
-                </div>
+                activeSeries && (
+                  <div className="chart-labels" aria-label={`Escala de ${activeSeries.label}`}>
+                    <span>{formatMetric(activeSeries.maximum, activeSeries.unit)}</span>
+                    <span>{formatMetric((activeSeries.maximum + activeSeries.minimum) / 2, activeSeries.unit)}</span>
+                    <span>{formatMetric(activeSeries.minimum, activeSeries.unit)}</span>
+                  </div>
+                )
               ) : (
                 <div className="chart-labels"><span>-5°</span><span>-10°</span><span>-15°</span><span>-20°</span></div>
               )}
@@ -182,7 +268,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                 viewBox="0 0 560 210"
                 preserveAspectRatio="none"
                 role={telemetry ? "img" : undefined}
-                aria-label={telemetry ? "Histórico de temperatura do arquivo JSON" : undefined}
+                aria-label={telemetry ? "Histórico de temperatura, umidade e corrente do arquivo JSON" : undefined}
               >
                 <defs>
                   <linearGradient id="detailFill" x1="0" y1="0" x2="0" y2="1">
@@ -192,10 +278,22 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                 </defs>
                 <path className="grid-lines" d="M0 20H560M0 75H560M0 130H560M0 185H560" />
                 {telemetry ? (
-                  <>
-                    <path className="chart-fill" d={temperatureFill} />
-                    <path className="chart-line" d={smoothTemperaturePath} />
-                  </>
+                  orderedChartSeries.map((series) => (
+                    <g
+                      className={`chart-series-${series.key}${activeSeries?.key === series.key ? " is-highlighted" : " is-dimmed"}`}
+                      key={series.key}
+                    >
+                      <path className="chart-line" d={series.path} />
+                      {series.singlePoint && (
+                        <circle
+                          className="chart-point"
+                          cx={series.singlePoint.x}
+                          cy={series.singlePoint.y}
+                          r="3.5"
+                        />
+                      )}
+                    </g>
+                  ))
                 ) : (
                   <>
                     <path className="threshold" d="M0 58H560" />
@@ -233,6 +331,47 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             <p>{hasSessionRecord ? "Maior valor do arquivo" : "Acima do ideal de 65%"}</p>
           </div>
         </div>
+        {equipment.analysis && (
+          <div className="drawer-analysis">
+            <div className="drawer-section-head">
+              <div>
+                <h3>Análise avançada</h3>
+                <p>
+                  {equipment.analysis.termica?.base_temporal === "timestamps"
+                    ? "Cálculos ponderados pelos timestamps do JSON"
+                    : "Cálculos baseados na sequência de leituras"}
+                </p>
+              </div>
+            </div>
+            <div className="drawer-metrics">
+              <div>
+                <span className="metric-icon"><Icon name="snow" /></span>
+                <small>Tempo em risco térmico</small>
+                <strong>{formatMetric(equipment.analysis.termica?.percentual_tempo_em_risco, "%")}</strong>
+                <p>{equipment.analysis.termica?.falha_preditiva_detectada ? "Tendência de aquecimento" : "Sem alerta preditivo"}</p>
+              </div>
+              <div>
+                <span className="metric-icon"><Icon name="bolt" /></span>
+                <small>Duty cycle</small>
+                <strong>{formatMetric(equipment.analysis.eletrica?.duty_cycle_percentual, "%")}</strong>
+                <p>{formatMetric(equipment.analysis.eletrica?.potencia_estimada_watts, " W")}</p>
+              </div>
+              <div>
+                <span className="metric-icon"><Icon name="clock" /></span>
+                <small>Partidas observadas</small>
+                <strong>{equipment.analysis.eletrica?.partidas_observadas ?? "—"}</strong>
+                <p>Transições desligado → ligado</p>
+              </div>
+            </div>
+            <ul className="analysis-risk-list">
+              {equipment.analysis.saude.fatores_de_risco.length ? (
+                equipment.analysis.saude.fatores_de_risco.map((factor) => <li key={factor}>{factor}</li>)
+              ) : (
+                <li>Nenhum fator de risco detectado pelos dados disponíveis.</li>
+              )}
+            </ul>
+          </div>
+        )}
         <Button variant="primary" className="full-button">
           Abrir análise completa <Icon name="arrow" />
         </Button>

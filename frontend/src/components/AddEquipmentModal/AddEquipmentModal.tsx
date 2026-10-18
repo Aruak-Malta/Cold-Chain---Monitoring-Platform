@@ -3,6 +3,7 @@ import { Button } from "../Button/Button";
 import { Icon } from "../Icon/Icon";
 import jsonIcon from "../../assets/icons8-json-48.png";
 import {
+  analyzeSessionEquipment,
   getSessionId,
   parseSessionEquipmentList,
 } from "../../services/sessionEquipmentService";
@@ -44,6 +45,7 @@ export function AddEquipmentModal({
 
     setSubmitting(true);
     notify(file ? `A processar o ficheiro ${file.name}...` : `Cadastrando ${name}...`);
+    let equipmentRegistered = false;
 
     try {
       const formData = new FormData();
@@ -69,18 +71,29 @@ export function AddEquipmentModal({
         return;
       }
 
-      const equipamentos = parseSessionEquipmentList(await resposta.json());
+      let equipamentos = parseSessionEquipmentList(await resposta.json());
+      equipmentRegistered = true;
       sessionStorage.setItem("equipamentos", JSON.stringify(equipamentos));
       onEquipmentAdded(equipamentos);
+      if (file) {
+        equipamentos = await analyzeSessionEquipment(serial.trim());
+        onEquipmentAdded(equipamentos);
+      }
+
       notify(
         file
-          ? `${name} adicionado com sucesso e dados históricos processados!`
+          ? `${name} adicionado com sucesso e análises históricas processadas!`
           : `${name} foi adicionado e aguarda a primeira conexão.`,
       );
       close();
     } catch (error) {
       console.error("Erro ao cadastrar equipamento:", error);
-      notify("Falha ao comunicar com o servidor ou salvar os dados nesta sessão.");
+      if (equipmentRegistered) {
+        notify(`${name} foi cadastrado, mas não foi possível concluir a análise avançada.`);
+        close();
+      } else {
+        notify("Falha ao comunicar com o servidor ou salvar os dados nesta sessão.");
+      }
     } finally {
       setSubmitting(false);
     }

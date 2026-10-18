@@ -1349,6 +1349,90 @@ button {
   color: #299b8e;
 }
 
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 7px;
+  margin: 0 30px 8px;
+}
+
+.chart-legend-item {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid #e0e8e9;
+  border-radius: 8px;
+  background: white;
+  color: #52696e;
+  text-align: left;
+  cursor: pointer;
+  transition: opacity .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.chart-legend-item.is-selected {
+  border-color: currentColor;
+  background: #f8fbfb;
+}
+
+.chart-legend-item.is-unavailable {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.chart-legend-marker {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.chart-legend-copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.chart-legend-copy strong,
+.chart-legend-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-legend-copy strong {
+  font-size: 9px;
+}
+
+.chart-legend-copy small {
+  color: #85969a;
+  font-size: 8px;
+}
+
+.chart-legend-note {
+  flex-basis: 100%;
+  color: #91a0a4;
+  font-size: 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.chart-series-temperatura {
+  color: #299b8e;
+}
+
+.chart-series-umidade {
+  color: #78bce0;
+}
+
+.chart-series-corrente {
+  color: #d5a93c;
+}
+
 .detail-chart svg {
   width: 100%;
   height: 100%;
@@ -1379,6 +1463,41 @@ button {
   stroke: currentColor;
   stroke-width: 2.4;
   vector-effect: non-scaling-stroke;
+  transition: opacity .18s ease, stroke-width .18s ease;
+}
+
+.chart-series-temperatura.is-highlighted .chart-line,
+.chart-series-umidade.is-highlighted .chart-line,
+.chart-series-corrente.is-highlighted .chart-line {
+  stroke-width: 3.2;
+}
+
+.chart-series-temperatura.is-highlighted .chart-line,
+.chart-series-umidade.is-highlighted .chart-line,
+.chart-series-corrente.is-highlighted .chart-line {
+  opacity: 1;
+}
+
+.chart-series-temperatura.is-dimmed .chart-line,
+.chart-series-umidade.is-dimmed .chart-line,
+.chart-series-corrente.is-dimmed .chart-line {
+  opacity: .13;
+}
+
+.chart-point {
+  fill: currentColor;
+}
+
+.chart-legend-item.chart-series-temperatura {
+  color: #299b8e;
+}
+
+.chart-legend-item.chart-series-umidade {
+  color: #78bce0;
+}
+
+.chart-legend-item.chart-series-corrente {
+  color: #d5a93c;
 }
 
 .chart-labels {
@@ -1459,6 +1578,24 @@ button {
   margin: 1px 0 0;
   color: #d2584e;
   font-size: 8px;
+}
+
+.drawer-analysis {
+  margin-bottom: 17px;
+}
+
+.analysis-risk-list {
+  margin: 0 30px;
+  padding: 11px 13px 11px 30px;
+  border: 1px solid #e0e8e9;
+  border-radius: 10px;
+  background: white;
+  color: #52696e;
+  font-size: 10px;
+}
+
+.analysis-risk-list li + li {
+  margin-top: 5px;
 }
 
 .full-button {

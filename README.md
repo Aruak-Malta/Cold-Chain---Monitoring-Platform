@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout e apresenta os dados do JSON. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. A tela de análises continua usando dados de demonstração.
+> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout, apresenta os dados do JSON e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. Os painéis agregados da tela de análises continuam usando dados de demonstração.
 
 ## Índice
 
@@ -25,7 +25,8 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - Formulário para cadastrar equipamento com nome e número de série.
 - Upload opcional de JSON de telemetria durante o cadastro.
 - Exibição dos equipamentos cadastrados nas telas de visão geral e equipamentos pelo mesmo modelo visual dos cartões existentes, com dados disponíveis do JSON e sem inventar métricas ausentes.
-- API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos.
+- A visão geral mostra os dados reais agregados pelo backend para a sessão atual e não apresenta alertas, consumo, custos ou atividade de demonstração como se fossem dados reais.
+- API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos, incluindo uma curva de temperatura suavizada de forma robusta no backend.
 - Cadastro de vários equipamentos por sessão, com prevenção de números de série repetidos dentro da mesma sessão.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
@@ -44,6 +45,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - Python
 - FastAPI e Uvicorn
 - Pandas
+- NumPy
 - `python-multipart` para receber uploads de formulário
 
 ## Requisitos
@@ -58,10 +60,12 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 ```text
 .
 ├── backend/
+│   ├── analises/
 │   ├── dados_simulados.json
 │   ├── gerar_dados.py
 │   ├── main.py
-│   └── requirements.txt
+│   ├── requirements.txt
+│   └── tests/
 ├── frontend/
 │   ├── package.json
 │   ├── package-lock.json
@@ -90,7 +94,7 @@ O comando `python -m venv .venv` cria um ambiente Python isolado dentro de `back
 .\.venv\Scripts\python.exe -m uvicorn main:app --reload
 ```
 
-O `pip install` baixa FastAPI, Uvicorn, Pandas e `python-multipart` para esse ambiente. O Uvicorn inicia o servidor local e `--reload` reinicia a API quando o código Python muda. A API ficará em `http://localhost:8000`.
+O `pip install` baixa FastAPI, Uvicorn, Pandas, NumPy e `python-multipart` para esse ambiente. O Uvicorn inicia o servidor local e `--reload` reinicia a API quando o código Python muda. A API ficará em `http://localhost:8000`.
 
 Para ativar o ambiente virtual em vez de chamar diretamente o Python dentro dele:
 
@@ -154,6 +158,16 @@ Com os dois servidores em execução:
 4. Para incluir telemetria, selecione `backend/dados_simulados.json` ou um JSON que siga o [formato documentado abaixo](#formato-do-json-de-telemetria).
 5. Envie o cadastro. Cadastre outro dispositivo com outro número de série; os dois devem ser aceitos.
 6. Tente enviar novamente o mesmo número de série na mesma aba. A API deve responder com conflito e o frontend deve avisar que o número já existe na sessão.
+
+### Testes automatizados do backend
+
+Com as dependências instaladas no ambiente virtual, execute a partir da pasta `backend`:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests
+```
+
+Os testes cobrem o contrato de JSON vazio, downsampling, médias com valor zero, análise avançada associada à sessão e contagem de partidas observadas.
 
 ### Testar diretamente a API no Windows
 
@@ -234,7 +248,6 @@ Exemplo de resposta:
       "serial": "TESTE-001",
       "setor": "Congelados",
       "telemetria": {
-        "mensagem": "Ficheiro processado com sucesso!",
         "resumo_analise": {
           "temperatura_media": 4.2,
           "umidade_media": 53.5,
@@ -244,16 +257,22 @@ Exemplo de resposta:
         "dados_graficos": {
           "tempos": ["2026-10-18T10:00:00", "2026-10-18T10:05:00"],
           "temperaturas": [4.1, 4.3],
+          "temperaturas_suavizadas": [4.1, 4.2],
           "umidades": [53.0, 54.0],
-          "correntes": [5.8, 6.1]
+          "umidades_suavizadas": [53.0, 53.5],
+          "correntes": [5.8, 6.1],
+          "correntes_suavizadas": [5.8, 6.0]
         }
-      }
+      },
+      "analise_avancada": null
     }
   ]
 }
 ```
 
 Sem arquivo, `telemetria` será `null`.
+
+Depois do upload, a interface chama `POST /analise-avancada` com o número de série e recebe a lista atualizada com os laudos correspondentes.
 
 ### `GET /equipamentos`
 
@@ -262,9 +281,23 @@ Retorna os equipamentos cadastrados para a sessão informada.
 - **Cabeçalho obrigatório:** o mesmo `X-Session-ID` usado no cadastro.
 - **Resposta de sucesso:** `{ "equipamentos": [...] }`. Uma sessão ainda sem cadastros retorna uma lista vazia.
 
-### `POST /analisar-equipamento`
+### `GET /resumo`
 
-Processa um arquivo JSON enviado no campo `file`, mas **não** cadastra nem associa o resultado a uma sessão. Para cadastrar e analisar em uma única operação, use `POST /equipamentos`.
+Retorna métricas calculadas pelo backend a partir dos dados brutos e das análises armazenadas na sessão.
+
+- **Cabeçalho obrigatório:** `X-Session-ID`.
+- **Campos:** `total_equipamentos`, `total_leituras`, `analises_concluidas`, `alertas` e `temperatura_media`.
+- Sem dados de temperatura, `temperatura_media` é `null`; as outras contagens permanecem zero.
+
+### `POST /analise-avancada`
+
+Executa as análises térmica, elétrica e de saúde sobre a telemetria bruta armazenada para um equipamento da sessão. O frontend chama essa rota automaticamente após o cadastro de um JSON.
+
+- **Cabeçalho obrigatório:** `X-Session-ID`.
+- **Corpo JSON:** `{ "serial": "TESTE-001" }`.
+- **Resposta:** lista atualizada em `equipamentos`, incluindo `analise_avancada` no equipamento analisado.
+- **Erros esperados:** `404` se o equipamento não existir nessa sessão; `422` se não houver arquivo de telemetria.
+- As análises térmica e elétrica exigem pelo menos 30 valores numéricos válidos de suas respectivas colunas. Quando faltam dados, os laudos ficam `null` e o `health_score` também é `null` (indisponível), não zero.
 
 ## Formato do JSON de telemetria
 
@@ -287,22 +320,25 @@ O arquivo deve conter um objeto JSON ou, normalmente, uma lista de registros. Ca
 ]
 ```
 
-A resposta da análise contém:
+A resposta básica contém:
 
-- `resumo_analise.temperatura_media`: média da coluna `temperatura`, ou `0` se ela não existir.
-- `resumo_analise.umidade_media`: média da coluna `umidade`, ou `0` se ela não existir.
-- `resumo_analise.corrente_maxima`: maior valor da coluna `corrente`, ou `0` se ela não existir.
+- `resumo_analise.temperatura_media`, `umidade_media` e `corrente_maxima`: métricas calculadas com os valores numéricos válidos, ou `null` se a coluna não tiver valores válidos. Uma média real igual a zero continua sendo `0`.
 - `resumo_analise.total_leituras`: quantidade de registros.
-- `dados_graficos.tempos`, `temperaturas`, `umidades` e `correntes`: valores das colunas correspondentes ou listas vazias se as colunas não existirem.
+- `dados_graficos.tempos`, as séries originais e `temperaturas_suavizadas`, `umidades_suavizadas` e `correntes_suavizadas`: pontos amostrados e alinhados para os gráficos. Os dados ausentes/inválidos são `null`, e o downsampling mantém no máximo 100 pontos. JSON vazio também retorna esse formato, com zero leituras e listas vazias.
+- As três séries suavizadas são calculadas no backend com filtro de mediana móvel adaptativo seguido de média móvel centrada: isso reduz picos breves, como abertura momentânea da porta, sem apagar variações sustentadas. A janela cresce com o tamanho da base até um limite, e as médias da telemetria continuam calculadas sobre os valores originais.
+- No painel lateral, a legenda permite destacar temperatura (verde original), umidade (azul claro) ou corrente (amarelo). As séries não selecionadas ficam esmaecidas; cada grandeza usa escala vertical independente, indicada no gráfico.
+
+O resultado `analise_avancada` contém `termica`, `eletrica` e `saude`. O risco térmico e a tendência usam os timestamps em ordem cronológica quando todos são válidos e distintos; caso contrário, são calculados pela sequência das leituras. `base_temporal` informa qual base foi usada. A análise elétrica informa partidas observadas como transições de desligado para ligado; não classifica ciclos curtos, pois isso exige um limite de duração definido e timestamps confiáveis.
 
 ## Armazenamento e sessões
 
 - O frontend gera um identificador com `crypto.randomUUID()` e guarda-o em `sessionStorage["cold-chain-session-id"]`.
 - Cada requisição de cadastro/listagem envia esse identificador no cabeçalho HTTP `X-Session-ID`.
 - O backend guarda registros em memória, separados por identificador de sessão. Não grava esses dados em arquivo ou banco.
+- A telemetria bruta fica somente na memória do backend para permitir a análise avançada; reiniciar o backend apaga também esses dados e os resultados.
 - O frontend guarda a última lista devolvida pelo backend em `sessionStorage["equipamentos"]`.
 - A interface carrega a lista da sessão pela API e converte cada cadastro para o modelo `Equipment` já usado pelos cartões existentes. Assim, dados de demonstração e cadastrados passam pelo mesmo componente visual; valores que não existem no JSON aparecem como `—`, sem estimativas inventadas.
-- O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
+- O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON e exibindo os resultados da análise avançada. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
 - `sessionStorage` pertence à aba do navegador e sobrevive a recarregamentos da página, mas pode ser limpo ao encerrar a sessão da aba.
 - Reiniciar o backend apaga os cadastros mantidos em memória. Depois de reiniciado, o `sessionStorage` do navegador pode ainda mostrar a lista antiga, mas a API estará vazia.
 - Os registros ficam isolados por sessão, e o mesmo número de série pode ser cadastrado em sessões diferentes.

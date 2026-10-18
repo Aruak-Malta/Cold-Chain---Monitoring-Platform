@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { navigationItems } from "../../data/navigation";
 import {
+  fetchSessionDashboardSummary,
   fetchSessionEquipments,
   parseSessionEquipmentList,
 } from "../../services/sessionEquipmentService";
-import type { SessionEquipmentRecord } from "../../services/sessionEquipmentService";
+import type {
+  SessionDashboardSummary,
+  SessionEquipmentRecord,
+} from "../../services/sessionEquipmentService";
 import type { Equipment } from "../../types/Equipment";
 import { AddEquipmentModal } from "../AddEquipmentModal/AddEquipmentModal";
 import { DetailDrawer } from "../DetailDrawer/DetailDrawer";
@@ -36,6 +40,8 @@ export function Layout() {
   const [toast, setToast] = useState("");
   const [sessionEquipments, setSessionEquipments] = useState<SessionEquipmentRecord[]>(readCachedEquipments);
   const [equipmentLoadError, setEquipmentLoadError] = useState("");
+  const [dashboardSummary, setDashboardSummary] = useState<SessionDashboardSummary | null>(null);
+  const [dashboardSummaryError, setDashboardSummaryError] = useState("");
   const equipmentChangedDuringLoad = useRef(false);
 
   useEffect(() => {
@@ -53,6 +59,19 @@ export function Layout() {
           setEquipmentLoadError("Não foi possível carregar os equipamentos salvos nesta sessão.");
         }
       });
+    fetchSessionDashboardSummary()
+      .then((summary) => {
+        if (isMounted && !equipmentChangedDuringLoad.current) {
+          setDashboardSummary(summary);
+          setDashboardSummaryError("");
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Erro ao carregar resumo da sessão:", error);
+        if (isMounted && !equipmentChangedDuringLoad.current) {
+          setDashboardSummaryError("Não foi possível carregar as métricas da sessão.");
+        }
+      });
 
     return () => {
       isMounted = false;
@@ -64,10 +83,17 @@ export function Layout() {
     window.setTimeout(() => setToast(""), 3200);
   }
 
-  function handleEquipmentAdded(equipments: SessionEquipmentRecord[]) {
+  async function handleEquipmentAdded(equipments: SessionEquipmentRecord[]) {
     equipmentChangedDuringLoad.current = true;
     setSessionEquipments(equipments);
     setEquipmentLoadError("");
+    try {
+      setDashboardSummary(await fetchSessionDashboardSummary());
+      setDashboardSummaryError("");
+    } catch (error) {
+      console.error("Erro ao atualizar resumo da sessão:", error);
+      setDashboardSummaryError("Não foi possível atualizar as métricas da sessão.");
+    }
   }
 
   return (
@@ -86,6 +112,8 @@ export function Layout() {
               search,
               sessionEquipments,
               equipmentLoadError,
+              dashboardSummary,
+              dashboardSummaryError,
               openEquipment: setSelectedEquipment,
               openAddEquipment: () => setAddModalOpen(true),
               notify,

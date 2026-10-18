@@ -749,6 +749,11 @@ button {
   border-top: 3px solid #98a5a9;
 }
 
+.equipment-historical,
+.equipment-registered {
+  border-top: 3px solid #6e9db3;
+}
+
 .card-top {
   display: flex;
   min-height: 69px;
@@ -839,6 +844,17 @@ button {
 .status-offline {
   background: #edf0f1;
   color: #77878c;
+}
+
+.status-historical,
+.status-registered {
+  background: #eaf0f7;
+  color: #4d6b8b;
+}
+
+.status-historical .status-dot,
+.status-registered .status-dot {
+  background: currentColor;
 }
 
 .temperature-row {
@@ -1254,6 +1270,27 @@ button {
   margin-top: 28px;
   color: #96a4a8;
   font-size: 7px;
+}
+
+.telemetry-empty {
+  position: absolute;
+  inset: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: #829397;
+  text-align: center;
+}
+
+.telemetry-empty strong {
+  color: #40585e;
+  font-size: 12px;
+}
+
+.telemetry-empty span {
+  font-size: 10px;
 }
 
 .drawer-score>div>small {

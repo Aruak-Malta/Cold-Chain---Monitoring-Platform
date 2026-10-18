@@ -5,19 +5,32 @@ import { EquipmentCard } from "../../components/EquipmentCard/EquipmentCard";
 import { Icon } from "../../components/Icon/Icon";
 import { PageTitle } from "../../components/PageTitle/PageTitle";
 import { equipment } from "../../data/equipment";
+import { toEquipment } from "../../services/sessionEquipmentService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
 
 export function Equipment() {
-  const { search, openEquipment, openAddEquipment, notify } = useOutletContext<AppOutletContext>();
+  const {
+    search,
+    sessionEquipments,
+    equipmentLoadError,
+    openEquipment,
+    openAddEquipment,
+    notify,
+  } = useOutletContext<AppOutletContext>();
   const [status, setStatus] = useState("Todos");
   const [sector, setSector] = useState("Todos os setores");
+  const displayedEquipment = [
+    ...equipment,
+    ...sessionEquipments.map((item, index) => toEquipment(item, index)),
+  ];
 
-  const filteredEquipment = equipment.filter((item) => {
+  const filteredEquipment = displayedEquipment.filter((item) => {
     const matchesSearch = `${item.name} ${item.place}`.toLowerCase().includes(search.toLowerCase());
     const matchesStatus =
       status === "Todos" ||
-      (status === "Online" && item.status !== "offline") ||
-      (status === "Offline" && item.status === "offline");
+      (status === "Online" && ["normal", "critical", "warning"].includes(item.status)) ||
+      (status === "Offline" && item.status === "offline") ||
+      (status === "Cadastrados" && ["historical", "registered"].includes(item.status));
     const matchesSector = sector === "Todos os setores" || item.place.includes(sector);
     return matchesSearch && matchesStatus && matchesSector;
   });
@@ -36,7 +49,7 @@ export function Equipment() {
       />
       <div className="toolbar-panel">
         <div className="filter-tabs">
-          {["Todos", "Online", "Offline"].map((item) => (
+          {["Todos", "Online", "Offline", "Cadastrados"].map((item) => (
             <button key={item} className={status === item ? "selected" : ""} onClick={() => setStatus(item)} type="button">
               {item}
             </button>
@@ -52,6 +65,12 @@ export function Equipment() {
           <Icon name="file" size="sm" />Exportar lista
         </Button>
       </div>
+      {equipmentLoadError && (
+        <div className="empty-state" role="alert">
+          <strong>Não foi possível carregar os equipamentos cadastrados.</strong>
+          <span>{equipmentLoadError} Os dados de demonstração continuam disponíveis.</span>
+        </div>
+      )}
       <div className="equipment-grid page-equipment-grid">
         {filteredEquipment.map((item) => (
           <EquipmentCard key={item.id} equipment={item} onOpen={() => openEquipment(item)} />

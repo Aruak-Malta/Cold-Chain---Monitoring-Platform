@@ -25,12 +25,14 @@ def analisar_conteudo_json(conteudo: bytes) -> dict:
     df = pd.DataFrame(registros)
     resumo = {
         "temperatura_media": df["temperatura"].mean() if "temperatura" in df else 0,
+        "umidade_media": df["umidade"].mean() if "umidade" in df else 0,
         "corrente_maxima": df["corrente"].max() if "corrente" in df else 0,
         "total_leituras": len(df),
     }
     dados_grafico = {
         "tempos": df["timestamp"].tolist() if "timestamp" in df else [],
         "temperaturas": df["temperatura"].tolist() if "temperatura" in df else [],
+        "umidades": df["umidade"].tolist() if "umidade" in df else [],
         "correntes": df["corrente"].tolist() if "corrente" in df else [],
     }
     return {
@@ -56,11 +58,13 @@ async def analisar_dados_json(file: UploadFile = File(...)):
 async def cadastrar_equipamento(
     nome: str = Form(...),
     serial: str = Form(...),
+    setor: str = Form("Sem setor"),
     session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),
     file: UploadFile | None = File(default=None),
 ):
     nome = nome.strip()
     serial = serial.strip()
+    setor = setor.strip() or "Sem setor"
     if not nome or not serial:
         raise HTTPException(status_code=422, detail="Nome e número de série são obrigatórios.")
 
@@ -82,6 +86,7 @@ async def cadastrar_equipamento(
     equipamentos[chave_serial] = {
         "nome": nome,
         "serial": serial,
+        "setor": setor,
         "telemetria": telemetria,
     }
     return {"equipamentos": list(equipamentos.values())}

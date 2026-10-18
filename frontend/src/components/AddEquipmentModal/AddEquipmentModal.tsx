@@ -2,61 +2,26 @@ import { useState } from "react";
 import { Button } from "../Button/Button";
 import { Icon } from "../Icon/Icon";
 import jsonIcon from "../../assets/icons8-json-48.png";
-
-const sessionIdKey = "cold-chain-session-id";
-const equipmentStorageKey = "equipamentos";
-
-type SessionEquipment = {
-  nome: string;
-  serial: string;
-  telemetria: unknown;
-};
-
-function getSessionId() {
-  const currentSessionId = sessionStorage.getItem(sessionIdKey);
-  if (currentSessionId) {
-    return currentSessionId;
-  }
-
-  const newSessionId = crypto.randomUUID();
-  sessionStorage.setItem(sessionIdKey, newSessionId);
-  return newSessionId;
-}
-
-function isSessionEquipment(value: unknown): value is SessionEquipment {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "nome" in value &&
-    typeof value.nome === "string" &&
-    "serial" in value &&
-    typeof value.serial === "string" &&
-    "telemetria" in value
-  );
-}
-
-function parseEquipmentList(value: unknown): SessionEquipment[] {
-  if (
-    typeof value !== "object" ||
-    value === null ||
-    !("equipamentos" in value) ||
-    !Array.isArray(value.equipamentos) ||
-    !value.equipamentos.every(isSessionEquipment)
-  ) {
-    throw new Error("O servidor retornou uma lista de equipamentos inválida.");
-  }
-
-  return value.equipamentos;
-}
+import {
+  getSessionId,
+  parseSessionEquipmentList,
+} from "../../services/sessionEquipmentService";
+import type { SessionEquipmentRecord } from "../../services/sessionEquipmentService";
 
 type AddEquipmentModalProps = {
   close: () => void;
   notify: (message: string) => void;
+  onEquipmentAdded: (equipments: SessionEquipmentRecord[]) => void;
 };
 
-export function AddEquipmentModal({ close, notify }: Readonly<AddEquipmentModalProps>) {
+export function AddEquipmentModal({
+  close,
+  notify,
+  onEquipmentAdded,
+}: Readonly<AddEquipmentModalProps>) {
   const [name, setName] = useState("");
   const [serial, setSerial] = useState("");
+  const [sector, setSector] = useState("Congelados");
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -84,6 +49,7 @@ export function AddEquipmentModal({ close, notify }: Readonly<AddEquipmentModalP
       const formData = new FormData();
       formData.append("nome", name.trim());
       formData.append("serial", serial.trim());
+      formData.append("setor", sector);
       if (file) {
         formData.append("file", file);
       }
@@ -103,8 +69,9 @@ export function AddEquipmentModal({ close, notify }: Readonly<AddEquipmentModalP
         return;
       }
 
-      const equipamentos = parseEquipmentList(await resposta.json());
-      sessionStorage.setItem(equipmentStorageKey, JSON.stringify(equipamentos));
+      const equipamentos = parseSessionEquipmentList(await resposta.json());
+      sessionStorage.setItem("equipamentos", JSON.stringify(equipamentos));
+      onEquipmentAdded(equipamentos);
       notify(
         file
           ? `${name} adicionado com sucesso e dados históricos processados!`
@@ -136,7 +103,7 @@ export function AddEquipmentModal({ close, notify }: Readonly<AddEquipmentModalP
         <div className="modal-form">
           <label>Nome do equipamento<input placeholder="Ex.: Freezer Sorvetes 03" value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label>Número de série / MAC Address<input placeholder="AA:BB:CC:DD:EE:FF" value={serial} onChange={(event) => setSerial(event.target.value)} /></label>
-          <label>Setor<select><option>Congelados</option><option>Açougue</option><option>Bebidas</option><option>Laticínios</option></select></label>
+          <label>Setor<select value={sector} onChange={(event) => setSector(event.target.value)}><option>Congelados</option><option>Açougue</option><option>Bebidas</option><option>Laticínios</option></select></label>
           <label>Tensão de operação<select><option>220V</option><option>127V</option></select></label>
           <div className="upload-wrapper">
             {/* Novo container para agrupar o ícone e o texto lado a lado */}

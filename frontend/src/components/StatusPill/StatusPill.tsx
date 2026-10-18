@@ -5,6 +5,8 @@ const statusLabels: Record<EquipmentStatus, string> = {
   critical: "Crítico",
   warning: "Atenção",
   offline: "Offline",
+  historical: "Histórico",
+  registered: "Cadastrado",
 };
 
 export function StatusPill({ status }: Readonly<{ status: EquipmentStatus }>) {

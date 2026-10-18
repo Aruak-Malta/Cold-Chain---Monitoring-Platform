@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. As telas de equipamentos e análises também contêm dados de demonstração; os novos cadastros ainda não substituem os cartões demonstrativos da tela.
+> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout e apresenta os dados do JSON. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. A tela de análises continua usando dados de demonstração.
 
 ## Índice
 
@@ -24,7 +24,8 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - Interface web com páginas de visão geral, equipamentos, alertas, análises, relatórios e configurações.
 - Formulário para cadastrar equipamento com nome e número de série.
 - Upload opcional de JSON de telemetria durante o cadastro.
-- API que calcula média de temperatura, corrente máxima, total de leituras e séries para gráficos.
+- Exibição dos equipamentos cadastrados nas telas de visão geral e equipamentos pelo mesmo modelo visual dos cartões existentes, com dados disponíveis do JSON e sem inventar métricas ausentes.
+- API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos.
 - Cadastro de vários equipamentos por sessão, com prevenção de números de série repetidos dentro da mesma sessão.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
@@ -219,7 +220,7 @@ Cadastra um equipamento e, se houver upload, processa a telemetria antes de arma
 - **Cabeçalho obrigatório:** `X-Session-ID` (1 a 128 caracteres).
 - **Corpo:** `multipart/form-data`.
 - **Campos obrigatórios:** `nome` e `serial`.
-- **Campo opcional:** `file`, arquivo JSON de telemetria.
+- **Campos opcionais:** `setor` (padrão `Sem setor`) e `file` (arquivo JSON de telemetria).
 - **Resposta de sucesso:** objeto com a lista `equipamentos` da sessão atualizada.
 - **Erros esperados:** `400` para JSON inválido, `409` para número de série duplicado na sessão e `422` para dados/campos inválidos.
 
@@ -231,16 +232,19 @@ Exemplo de resposta:
     {
       "nome": "Freezer de teste",
       "serial": "TESTE-001",
+      "setor": "Congelados",
       "telemetria": {
         "mensagem": "Ficheiro processado com sucesso!",
         "resumo_analise": {
           "temperatura_media": 4.2,
+          "umidade_media": 53.5,
           "corrente_maxima": 6.1,
           "total_leituras": 2
         },
         "dados_graficos": {
           "tempos": ["2026-10-18T10:00:00", "2026-10-18T10:05:00"],
           "temperaturas": [4.1, 4.3],
+          "umidades": [53.0, 54.0],
           "correntes": [5.8, 6.1]
         }
       }
@@ -271,11 +275,13 @@ O arquivo deve conter um objeto JSON ou, normalmente, uma lista de registros. Ca
   {
     "timestamp": "2026-10-18T10:00:00",
     "temperatura": -18.2,
+    "umidade": 62,
     "corrente": 4.1
   },
   {
     "timestamp": "2026-10-18T10:05:00",
     "temperatura": -18.5,
+    "umidade": 63,
     "corrente": 4.4
   }
 ]
@@ -284,9 +290,10 @@ O arquivo deve conter um objeto JSON ou, normalmente, uma lista de registros. Ca
 A resposta da análise contém:
 
 - `resumo_analise.temperatura_media`: média da coluna `temperatura`, ou `0` se ela não existir.
+- `resumo_analise.umidade_media`: média da coluna `umidade`, ou `0` se ela não existir.
 - `resumo_analise.corrente_maxima`: maior valor da coluna `corrente`, ou `0` se ela não existir.
 - `resumo_analise.total_leituras`: quantidade de registros.
-- `dados_graficos.tempos`, `temperaturas` e `correntes`: valores das colunas correspondentes ou listas vazias se as colunas não existirem.
+- `dados_graficos.tempos`, `temperaturas`, `umidades` e `correntes`: valores das colunas correspondentes ou listas vazias se as colunas não existirem.
 
 ## Armazenamento e sessões
 
@@ -294,6 +301,8 @@ A resposta da análise contém:
 - Cada requisição de cadastro/listagem envia esse identificador no cabeçalho HTTP `X-Session-ID`.
 - O backend guarda registros em memória, separados por identificador de sessão. Não grava esses dados em arquivo ou banco.
 - O frontend guarda a última lista devolvida pelo backend em `sessionStorage["equipamentos"]`.
+- A interface carrega a lista da sessão pela API e converte cada cadastro para o modelo `Equipment` já usado pelos cartões existentes. Assim, dados de demonstração e cadastrados passam pelo mesmo componente visual; valores que não existem no JSON aparecem como `—`, sem estimativas inventadas.
+- O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
 - `sessionStorage` pertence à aba do navegador e sobrevive a recarregamentos da página, mas pode ser limpo ao encerrar a sessão da aba.
 - Reiniciar o backend apaga os cadastros mantidos em memória. Depois de reiniciado, o `sessionStorage` do navegador pode ainda mostrar a lista antiga, mas a API estará vazia.
 - Os registros ficam isolados por sessão, e o mesmo número de série pode ser cadastrado em sessões diferentes.
@@ -338,4 +347,4 @@ O arquivo não é JSON válido ou não tem o formato de objeto/lista esperado. C
 - Os dados em memória são voláteis e não são compartilhados entre múltiplos processos/instâncias do servidor.
 - Não envie dados pessoais, segredos ou telemetria confidencial para esta versão sem implementar autenticação, controles de acesso, validação/limites de upload e armazenamento apropriado.
 - O formulário atualmente envia nome, número de série e arquivo JSON; outros campos visuais do modal, como setor e tensão, ainda não fazem parte do cadastro da API.
-- A tela Equipamentos e as análises continuam usando dados de demonstração. A API e o `sessionStorage` aceitam múltiplos registros, mas ainda falta integrar a listagem visual da página à API.
+- Os cartões demonstrativos continuam visíveis junto dos equipamentos cadastrados. A tela de análises ainda não consolida os dados dos JSONs; seus gráficos são demonstrativos.

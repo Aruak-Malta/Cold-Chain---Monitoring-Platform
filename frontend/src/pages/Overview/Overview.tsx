@@ -4,6 +4,7 @@ import { Button } from "../../components/Button/Button";
 import { EquipmentCard } from "../../components/EquipmentCard/EquipmentCard";
 import { Icon } from "../../components/Icon/Icon";
 import { equipment } from "../../data/equipment";
+import { toEquipment } from "../../services/sessionEquipmentService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
 import type { IconName } from "../../types/Icon";
 
@@ -26,17 +27,22 @@ function SummaryCard({ icon, label, value, detail, tone }: Readonly<SummaryCardP
 
 export function Overview() {
   const navigate = useNavigate();
-  const { search, openEquipment, notify } = useOutletContext<AppOutletContext>();
+  const { search, sessionEquipments, openEquipment, notify } = useOutletContext<AppOutletContext>();
   const [filter, setFilter] = useState("Todos");
   const [acknowledged, setAcknowledged] = useState(false);
 
-  const filteredEquipment = useMemo(() => equipment.filter((item) => {
+  const displayedEquipment = [
+    ...equipment,
+    ...sessionEquipments.map((item, index) => toEquipment(item, index)),
+  ];
+
+  const filteredEquipment = useMemo(() => displayedEquipment.filter((item) => {
     const statusMatches =
       filter === "Todos" ||
       (filter === "Em alerta" && ["critical", "warning"].includes(item.status)) ||
       (filter === "Offline" && item.status === "offline");
     return statusMatches && `${item.name} ${item.place}`.toLowerCase().includes(search.toLowerCase());
-  }), [filter, search]);
+  }), [displayedEquipment, filter, search]);
 
   function acknowledgeAlert() {
     setAcknowledged(true);
@@ -50,7 +56,13 @@ export function Overview() {
         <div className="live-indicator"><span className="pulse" />Dados ao vivo <small>agora</small></div>
       </section>
       <section className="summary-grid">
-        <SummaryCard icon="snow" label="Equipamentos" value="24" detail="22 online · 2 offline" tone="blue" />
+        <SummaryCard
+          icon="snow"
+          label="Equipamentos"
+          value={String(24 + sessionEquipments.length)}
+          detail={`22 online · 2 offline · ${sessionEquipments.length} cadastrados`}
+          tone="blue"
+        />
         <SummaryCard icon="bell" label="Alertas ativos" value="3" detail="1 crítico · 2 atenção" tone="red" />
         <SummaryCard icon="bolt" label="Consumo este mês" value="8.492 kWh" detail="+6,4% vs. mês anterior" tone="amber" />
         <SummaryCard icon="leaf" label="Custo estimado" value="R$ 7.218" detail="Projeção: R$ 11.840" tone="green" />

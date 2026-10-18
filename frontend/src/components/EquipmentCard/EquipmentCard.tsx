@@ -19,18 +19,27 @@ export function EquipmentCard({ equipment, onOpen }: Readonly<EquipmentCardProps
       </div>
       <div className="temperature-row">
         <div>
-          <small>Temperatura agora</small>
+          <small>{equipment.temperatureLabel ?? "Temperatura agora"}</small>
           <strong>{equipment.temp}</strong>
           <span className={`trend ${equipment.trend}`}>
             <Icon
-              name={equipment.status === "critical" ? "arrow" : equipment.status === "offline" ? "wifi" : "check"}
+              name={
+                equipment.status === "historical"
+                  ? "chart"
+                  : equipment.status === "critical"
+                    ? "arrow"
+                    : equipment.status === "offline"
+                      ? "wifi"
+                      : "check"
+              }
               size="sm"
             />
-            {equipment.status === "critical"
-              ? "+3,8° em 30 min"
-              : equipment.status === "offline"
-                ? "Sem dados há 14 min"
-                : "Dentro do limite"}
+            {equipment.trendMessage ??
+              (equipment.status === "critical"
+                ? "+3,8° em 30 min"
+                : equipment.status === "offline"
+                  ? "Sem dados há 14 min"
+                  : "Dentro do limite")}
           </span>
         </div>
         {/* <svg
@@ -44,12 +53,14 @@ export function EquipmentCard({ equipment, onOpen }: Readonly<EquipmentCardProps
         </svg> */}
       </div>
       <div className="sensor-row">
-        <span><Icon name="drop" size="sm" /><small>Umidade</small><strong>{equipment.humidity}</strong></span>
-        <span><Icon name="bolt" size="sm" /><small>Corrente</small><strong>{equipment.current}</strong></span>
+        <span><Icon name="drop" size="sm" /><small>{equipment.humidityLabel ?? "Umidade"}</small><strong>{equipment.humidity}</strong></span>
+        <span><Icon name="bolt" size="sm" /><small>{equipment.currentLabel ?? "Corrente"}</small><strong>{equipment.current}</strong></span>
         <span>
           <Icon name="chart" size="sm" />
           <small>Saúde</small>
-          <strong className={equipment.health < 70 ? "score-low" : ""}>{equipment.health}</strong>
+          <strong className={equipment.health !== null && equipment.health < 70 ? "score-low" : ""}>
+            {equipment.health ?? "—"}
+          </strong>
         </span>
       </div>
       <div className="card-bottom">

@@ -104,6 +104,8 @@ async def obter_resumo(
     total_leituras = 0
     analises_concluidas = 0
     alertas = 0
+    health_scores: list[float] = []
+    duty_cycles: list[float] = []
 
     for chave_serial, equipamento in equipamentos.items():
         telemetria = equipamento.get("telemetria")
@@ -116,8 +118,18 @@ async def obter_resumo(
         if isinstance(analise, dict):
             analises_concluidas += 1
             saude = analise.get("saude")
-            if isinstance(saude, dict) and saude.get("status_geral") in {"Atenção", "Crítico"}:
-                alertas += 1
+            if isinstance(saude, dict):
+                if saude.get("status_geral") in {"Atenção", "Crítico"}:
+                    alertas += 1
+                health_score = saude.get("health_score")
+                if isinstance(health_score, (int, float)) and math.isfinite(health_score):
+                    health_scores.append(float(health_score))
+
+            eletrica = analise.get("eletrica")
+            if isinstance(eletrica, dict):
+                duty_cycle = eletrica.get("duty_cycle_percentual")
+                if isinstance(duty_cycle, (int, float)) and math.isfinite(duty_cycle):
+                    duty_cycles.append(float(duty_cycle))
 
         leituras = registros_brutos.get(chave_serial, [])
         if leituras:
@@ -132,6 +144,19 @@ async def obter_resumo(
             "total_leituras": total_leituras,
             "analises_concluidas": analises_concluidas,
             "alertas": alertas,
+            "health_score_medio": (
+                round(sum(health_scores) / len(health_scores), 1) if health_scores else None
+            ),
+            "riscos_criticos": sum(
+                1
+                for equipamento in equipamentos.values()
+                if isinstance(equipamento.get("analise_avancada"), dict)
+                and isinstance(equipamento["analise_avancada"].get("saude"), dict)
+                and equipamento["analise_avancada"]["saude"].get("status_geral") == "Crítico"
+            ),
+            "duty_cycle_medio": (
+                round(sum(duty_cycles) / len(duty_cycles), 1) if duty_cycles else None
+            ),
             "temperatura_media": (
                 round(sum(temperaturas) / len(temperaturas), 2) if temperaturas else None
             ),

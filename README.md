@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout, apresenta os dados do JSON e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. Os painéis agregados da tela de análises continuam usando dados de demonstração.
+> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout, apresenta os dados do JSON e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. A tela de análises usa os laudos e séries da sessão, sem recorrer aos dados fixos da demonstração; métricas indisponíveis não são estimadas.
 
 ## Índice
 
@@ -27,6 +27,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - Exibição dos equipamentos cadastrados nas telas de visão geral e equipamentos pelo mesmo modelo visual dos cartões existentes, com dados disponíveis do JSON e sem inventar métricas ausentes.
 - A visão geral mostra os dados reais agregados pelo backend para a sessão atual e não apresenta alertas, consumo, custos ou atividade de demonstração como se fossem dados reais.
 - API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos, incluindo uma curva de temperatura suavizada de forma robusta no backend.
+- Tela de análises alimentada pelos dados cadastrados na sessão, com indicadores agregados calculados pelo backend, comparação horizontal de Health Score/duty cycle/risco térmico e investigação individual com laudos e séries reais.
 - Cadastro de vários equipamentos por sessão, com prevenção de números de série repetidos dentro da mesma sessão.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
@@ -286,7 +287,8 @@ Retorna os equipamentos cadastrados para a sessão informada.
 Retorna métricas calculadas pelo backend a partir dos dados brutos e das análises armazenadas na sessão.
 
 - **Cabeçalho obrigatório:** `X-Session-ID`.
-- **Campos:** `total_equipamentos`, `total_leituras`, `analises_concluidas`, `alertas` e `temperatura_media`.
+- **Campos:** `total_equipamentos`, `total_leituras`, `analises_concluidas`, `alertas`, `health_score_medio`, `riscos_criticos`, `duty_cycle_medio` e `temperatura_media`.
+- `health_score_medio` e `duty_cycle_medio` são médias apenas dos laudos que possuem esses valores; quando não há valores disponíveis, retornam `null`. `riscos_criticos` conta os equipamentos classificados como Crítico pelo laudo de saúde.
 - Sem dados de temperatura, `temperatura_media` é `null`; as outras contagens permanecem zero.
 
 ### `POST /analise-avancada`

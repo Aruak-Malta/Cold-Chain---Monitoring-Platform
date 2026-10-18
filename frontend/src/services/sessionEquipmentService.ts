@@ -27,6 +27,9 @@ export type SessionDashboardSummary = {
   total_leituras: number;
   analises_concluidas: number;
   alertas: number;
+  health_score_medio: number | null;
+  riscos_criticos: number;
+  duty_cycle_medio: number | null;
   temperatura_media: number | null;
 };
 
@@ -200,6 +203,9 @@ export async function fetchSessionDashboardSummary(): Promise<SessionDashboardSu
     !isFiniteNumber(summary.total_leituras) ||
     !isFiniteNumber(summary.analises_concluidas) ||
     !isFiniteNumber(summary.alertas) ||
+    !isNumberOrNull(summary.health_score_medio) ||
+    !isFiniteNumber(summary.riscos_criticos) ||
+    !isNumberOrNull(summary.duty_cycle_medio) ||
     !isNumberOrNull(summary.temperatura_media)
   ) {
     throw new Error("O servidor retornou métricas de sessão inválidas.");
@@ -210,6 +216,9 @@ export async function fetchSessionDashboardSummary(): Promise<SessionDashboardSu
     total_leituras: summary.total_leituras,
     analises_concluidas: summary.analises_concluidas,
     alertas: summary.alertas,
+    health_score_medio: summary.health_score_medio,
+    riscos_criticos: summary.riscos_criticos,
+    duty_cycle_medio: summary.duty_cycle_medio,
     temperatura_media: summary.temperatura_media,
   };
 }

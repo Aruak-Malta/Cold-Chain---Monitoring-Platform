@@ -11,6 +11,18 @@ type DetailDrawerProps = {
 
 type ChartMetricKey = "temperatura" | "umidade" | "corrente";
 
+type ChartPoint = {
+  x: number;
+  y: number;
+  value: number;
+  index: number;
+};
+
+type HoveredChartPoint = ChartPoint & {
+  tooltipLeft: number;
+  tooltipTop: number;
+};
+
 type ChartSeries = {
   key: ChartMetricKey;
   label: string;
@@ -20,6 +32,7 @@ type ChartSeries = {
   minimum: number;
   maximum: number;
   path: string;
+  points: (ChartPoint | null)[];
   singlePoint: { x: number; y: number } | null;
 };
 
@@ -28,6 +41,12 @@ const chartMetrics: { key: ChartMetricKey; label: string; unit: string }[] = [
   { key: "umidade", label: "Umidade", unit: "%" },
   { key: "corrente", label: "Corrente", unit: " A" },
 ];
+
+const chartSeriesColors: Record<ChartMetricKey, string> = {
+  temperatura: "#299b8e",
+  umidade: "#78bce0",
+  corrente: "#d5a93c",
+};
 
 function formatMetric(value: number | null | undefined, unit: string) {
   return value === null || value === undefined
@@ -67,6 +86,8 @@ function buildChartSeries(
     : {
         x: values.length <= 1 ? 280 : (index / (values.length - 1)) * 560,
         y: 185 - ((value - chartMinimum) / chartRange) * 165,
+        value,
+        index,
       });
 
   let path = "";
@@ -112,6 +133,7 @@ function buildChartSeries(
     minimum,
     maximum,
     path,
+    points,
     singlePoint: validValues.length === 1 ? points.find((point) => point !== null) ?? null : null,
   };
 }
@@ -119,6 +141,7 @@ function buildChartSeries(
 export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>) {
   const [period, setPeriod] = useState("24h");
   const [selectedMetric, setSelectedMetric] = useState<ChartMetricKey>("temperatura");
+  const [hoveredPoint, setHoveredPoint] = useState<HoveredChartPoint | null>(null);
   const hasSessionRecord = equipment.serial !== undefined;
   const telemetry = equipment.telemetry;
   const chartSeries = telemetry
@@ -134,6 +157,10 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
   const activeSeries = availableSeries.find((series) => series.key === selectedMetric)
     ?? availableSeries[0]
     ?? null;
+  const activeSeriesPoint = hoveredPoint ? activeSeries?.points[hoveredPoint.index] : null;
+  const activeHoveredPoint = hoveredPoint && activeSeriesPoint
+    ? { ...activeSeriesPoint, tooltipLeft: hoveredPoint.tooltipLeft, tooltipTop: hoveredPoint.tooltipTop }
+    : null;
   const orderedChartSeries = [...chartSeries].sort(
     (left, right) => Number(left.key === activeSeries?.key) - Number(right.key === activeSeries?.key),
   );
@@ -227,7 +254,10 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                   key={series.key}
                   aria-pressed={activeSeries?.key === series.key}
                   disabled={!hasValues}
-                  onClick={() => setSelectedMetric(series.key)}
+                  onClick={() => {
+                    setSelectedMetric(series.key);
+                    setHoveredPoint(null);
+                  }}
                 >
                   <span className="chart-legend-marker" />
                   <span className="chart-legend-copy">
@@ -240,7 +270,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             <span className="chart-legend-note">Escalas independentes</span>
           </div>
         )}
-        <div className="detail-chart">
+        <div className="detail-chart" onPointerLeave={() => setHoveredPoint(null)}>
           {hasSessionRecord && !telemetry ? (
             <div className="telemetry-empty">
               <strong>Nenhuma telemetria disponível</strong>
@@ -269,6 +299,33 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                 preserveAspectRatio="none"
                 role={telemetry ? "img" : undefined}
                 aria-label={telemetry ? "Histórico de temperatura, umidade e corrente do arquivo JSON" : undefined}
+                onPointerMove={(event) => {
+                  if (!activeSeries) return;
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  const pointerX = ((event.clientX - bounds.left) / bounds.width) * 560;
+                  const chartElement = event.currentTarget.parentElement;
+                  if (!chartElement) return;
+                  const chartBounds = chartElement.getBoundingClientRect();
+                  const nearestPoint = activeSeries.points
+                    .filter((point): point is ChartPoint => point !== null)
+                    .reduce<ChartPoint | null>(
+                      (nearest, point) => !nearest || Math.abs(point.x - pointerX) < Math.abs(nearest.x - pointerX)
+                        ? point
+                        : nearest,
+                      null,
+                    );
+                  if (!nearestPoint) {
+                    setHoveredPoint(null);
+                    return;
+                  }
+                  const pointLeft = bounds.left - chartBounds.left + (nearestPoint.x / 560) * bounds.width;
+                  const pointTop = bounds.top - chartBounds.top + (nearestPoint.y / 210) * bounds.height;
+                  setHoveredPoint({
+                    ...nearestPoint,
+                    tooltipLeft: Math.max(8, Math.min(pointLeft - 72, chartBounds.width - 152)),
+                    tooltipTop: Math.max(8, pointTop - 48),
+                  });
+                }}
               >
                 <defs>
                   <linearGradient id="detailFill" x1="0" y1="0" x2="0" y2="1">
@@ -292,6 +349,15 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                           r="3.5"
                         />
                       )}
+                      {activeHoveredPoint && series.key === activeSeries?.key && (
+                        <circle
+                          className="chart-hover-point"
+                          cx={activeHoveredPoint.x}
+                          cy={activeHoveredPoint.y}
+                          r="5"
+                          fill={chartSeriesColors[series.key]}
+                        />
+                      )}
                     </g>
                   ))
                 ) : (
@@ -302,6 +368,16 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                   </>
                 )}
               </svg>
+              {activeSeries && activeHoveredPoint && telemetry && (
+                <div
+                  className="chart-hover-tooltip"
+                  role="tooltip"
+                  style={{ left: activeHoveredPoint.tooltipLeft, top: activeHoveredPoint.tooltipTop }}
+                >
+                  <strong>{formatMetric(activeHoveredPoint.value, activeSeries.unit)}</strong>
+                  <span>{formatTime(telemetry.times[activeHoveredPoint.index])}</span>
+                </div>
+              )}
               {telemetry ? (
                 <div className="chart-times">
                   {timeLabels.map((time, index) => <span key={`${time}-${index}`}>{formatTime(time)}</span>)}

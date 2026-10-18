@@ -47,6 +47,9 @@ class AnaliseTelemetriaTests(unittest.TestCase):
         self.assertEqual(resumo["total_equipamentos"], 1)
         self.assertEqual(resumo["analises_concluidas"], 0)
         self.assertIsNone(resumo["temperatura_media"])
+        self.assertIsNone(resumo["health_score_medio"])
+        self.assertEqual(resumo["riscos_criticos"], 0)
+        self.assertIsNone(resumo["duty_cycle_medio"])
 
         resposta = asyncio.run(main.executar_analise_avancada(
             main.SolicitacaoAnalise(serial="VAZIO-001"),
@@ -140,6 +143,12 @@ class AnaliseTelemetriaTests(unittest.TestCase):
         self.assertEqual(resumo["total_equipamentos"], 1)
         self.assertEqual(resumo["total_leituras"], 40)
         self.assertEqual(resumo["analises_concluidas"], 1)
+        self.assertEqual(resumo["health_score_medio"], analise["saude"]["health_score"])
+        self.assertEqual(
+            resumo["riscos_criticos"],
+            int(analise["saude"]["status_geral"] == "Crítico"),
+        )
+        self.assertEqual(resumo["duty_cycle_medio"], analise["eletrica"]["duty_cycle_percentual"])
         self.assertAlmostEqual(resumo["temperatura_media"], sum(item["temperatura"] for item in registros) / 40, places=2)
 
         with self.assertRaises(HTTPException) as erro:

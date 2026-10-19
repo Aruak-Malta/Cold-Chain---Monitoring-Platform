@@ -13,6 +13,13 @@ def calcular_health_score(dados_termicos: dict, dados_eletricos: dict) -> dict:
     if dados_termicos.get("falha_preditiva_detectada"):
         score -= 20
         deducoes_motivo.append("Aviso preditivo: Tendência de aquecimento detectada.")
+
+    if (
+        dados_termicos.get("alerta_temperatura_anomala_baixa")
+        or dados_termicos.get("alerta_temperatura_anomala_alta")
+    ):
+        score -= 20
+        deducoes_motivo.append("Desvio térmico persistente em relação ao padrão aprendido.")
     
     risco_termico = dados_termicos.get("percentual_tempo_em_risco", 0)
     if risco_termico > 2: # Acima de 2% do tempo em risco já perde ponto
@@ -25,6 +32,14 @@ def calcular_health_score(dados_termicos: dict, dados_eletricos: dict) -> dict:
     if dados_eletricos.get("alerta_compressor_travando"):
         score -= 40
         deducoes_motivo.append("Alerta Crítico: Compressor com alta resistência/travando.")
+
+    if dados_eletricos.get("alerta_corrente_alta_sustentada"):
+        score -= 20
+        deducoes_motivo.append("Corrente acima do padrão de operação por período prolongado.")
+
+    if dados_eletricos.get("alerta_refrigeracao_ineficiente"):
+        score -= 20
+        deducoes_motivo.append("Temperatura sem resposta clara durante corrente elevada.")
         
     duty_cycle = dados_eletricos.get("duty_cycle_percentual", 0)
     if duty_cycle > 75:

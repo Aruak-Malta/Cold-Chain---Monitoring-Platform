@@ -1,15 +1,18 @@
 import asyncio
 import json
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 import pandas as pd
 from fastapi import HTTPException, UploadFile
+from fastapi.encoders import jsonable_encoder
 
 import main
 from analises.basica import processar_telemetria_basica, suavizar_serie
+from analises.avisos import gerar_avisos
 from analises.eletrica import analisar_comportamento_eletrico
+from analises.qualidade import analisar_qualidade_telemetria
 from analises.saude import calcular_health_score
 from analises.termica import analisar_comportamento_termico
 
@@ -92,10 +95,16 @@ class AnaliseTelemetriaTests(unittest.TestCase):
             self.assertEqual(len(graficos[coluna]), 3)
         self.assertEqual(graficos["umidades"], [None, None, None])
 
-    def test_suavizacao_reduz_picos_curto_sem_apagar_mudanca_sustentada(self):
+    def test_suavizacao_preserva_anomalia_brusca_e_suaviza_ruido_moderado(self):
         valores = pd.Series([-18.0] * 100 + [-5.0] * 3 + [-18.0] * 100)
         suavizados = suavizar_serie(valores)
-        self.assertLess(float(suavizados.max()), -12.0)
+        self.assertAlmostEqual(float(suavizados.iloc[100]), -5.0)
+        self.assertAlmostEqual(float(suavizados.iloc[101]), -5.0)
+        self.assertAlmostEqual(float(suavizados.iloc[102]), -5.0)
+
+        valores_com_ruido = pd.Series([-18.0] * 100 + [-17.7] * 3 + [-18.0] * 100)
+        suavizados_com_ruido = suavizar_serie(valores_com_ruido)
+        self.assertLess(float(suavizados_com_ruido.max()), -17.7)
 
         valores_com_abertura = pd.Series([-18.0] * 100 + [-5.0] * 40 + [-18.0] * 100)
         suavizados_com_abertura = suavizar_serie(valores_com_abertura)
@@ -172,6 +181,117 @@ class AnaliseTelemetriaTests(unittest.TestCase):
         )
 
         self.assertEqual(resultado["base_temporal"], "leituras")
+
+    def test_anomalia_sustentada_detecta_desvio_termico_e_corrente_sem_confundir_picos(self):
+        instante = datetime.now(timezone.utc) - timedelta(hours=10)
+        registros = []
+        for indice in range(120):
+            anomalia = indice >= 101
+            registros.append({
+                "timestamp": (instante + timedelta(minutes=5 * indice)).isoformat(),
+                "temperatura": 0.1 + (indice % 2) * 0.05 if anomalia else 4 + (indice % 2) * 0.1,
+                "corrente": 12.5 if anomalia else 17.5 if indice in {1, 41, 81} else 5.5 if indice % 4 in {1, 2} else 0,
+            })
+
+        df = pd.DataFrame(registros)
+        termica = analisar_comportamento_termico(df)
+        eletrica = analisar_comportamento_eletrico(df)
+        qualidade = analisar_qualidade_telemetria(df)
+        codigos = {
+            aviso["codigo"]
+            for aviso in gerar_avisos(termica, eletrica, qualidade)
+        }
+
+        self.assertTrue(termica["alerta_temperatura_anomala_baixa"])
+        self.assertTrue(eletrica["alerta_corrente_alta_sustentada"])
+        self.assertTrue(eletrica["alerta_refrigeracao_ineficiente"])
+        self.assertFalse(qualidade["telemetria_desatualizada"])
+        self.assertIn("temperatura_baixa_relativa", codigos)
+        self.assertIn("corrente_alta_sustentada", codigos)
+        self.assertIn("refrigeracao_ineficiente", codigos)
+        self.assertNotIn("telemetria_desatualizada", codigos)
+
+        base_sem_anomalia = pd.DataFrame(registros[:101])
+        resultado_sem_anomalia = analisar_comportamento_eletrico(base_sem_anomalia)
+        self.assertFalse(resultado_sem_anomalia["alerta_corrente_alta_sustentada"])
+
+    def test_qualidade_identifica_valores_invalidos_e_intervalos_sem_timestamp(self):
+        agora = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
+        registros = [
+            {
+                "timestamp": (agora - timedelta(minutes=30 - indice * 5)).isoformat(),
+                "temperatura": "inválida" if indice == 1 else 4,
+                "corrente": -1 if indice == 2 else 5,
+            }
+            for indice in range(6)
+        ]
+        registros.append({
+            "timestamp": "horário-inválido",
+            "temperatura": None,
+            "corrente": None,
+        })
+        registros[4]["timestamp"] = (agora - timedelta(minutes=60)).isoformat()
+
+        resultado = analisar_qualidade_telemetria(pd.DataFrame(registros), agora=agora)
+
+        self.assertEqual(resultado["timestamps_invalidos"], 1)
+        self.assertEqual(resultado["temperaturas_fora_faixa_sensor"], 0)
+        self.assertEqual(resultado["leituras_temperatura_sem_valor"], 2)
+        self.assertEqual(resultado["correntes_fora_faixa_sensor"], 1)
+        self.assertEqual(resultado["leituras_corrente_sem_valor"], 1)
+        self.assertGreater(resultado["lacunas_temporais"], 0)
+
+    def test_base_simulada_gera_os_avisos_da_anomalia_injetada(self):
+        with open("dados_simulados.json", encoding="utf-8") as arquivo:
+            registros = json.load(arquivo)
+        df = pd.DataFrame(registros)
+
+        termica = analisar_comportamento_termico(df)
+        eletrica = analisar_comportamento_eletrico(df)
+        ultima_data = pd.to_datetime(df["timestamp"], utc=True).max().to_pydatetime()
+        qualidade = analisar_qualidade_telemetria(
+            df,
+            agora=ultima_data + timedelta(hours=2),
+        )
+        codigos = {
+            aviso["codigo"]
+            for aviso in gerar_avisos(termica, eletrica, qualidade)
+        }
+
+        self.assertTrue(termica["alerta_temperatura_anomala_baixa"])
+        self.assertTrue(eletrica["alerta_corrente_alta_sustentada"])
+        self.assertIn("temperatura_baixa_relativa", codigos)
+        self.assertIn("corrente_alta_sustentada", codigos)
+        self.assertIn("refrigeracao_ineficiente", codigos)
+        self.assertIn("telemetria_desatualizada", codigos)
+
+        arquivo = UploadFile(
+            file=BytesIO(json.dumps(registros).encode()),
+            filename="dados_simulados.json",
+        )
+        asyncio.run(main.cadastrar_equipamento(
+            nome="Freezer simulado",
+            serial="SIMULADO-001",
+            setor="Teste",
+            session_id="sessao-simulada",
+            file=arquivo,
+        ))
+        resposta = asyncio.run(main.executar_analise_avancada(
+            main.SolicitacaoAnalise(serial="SIMULADO-001"),
+            session_id="sessao-simulada",
+        ))
+        analise_integrada = resposta["equipamentos"][0]["analise_avancada"]
+        codigos_integrados = {aviso["codigo"] for aviso in analise_integrada["avisos"]}
+        self.assertIn("temperatura_baixa_relativa", codigos_integrados)
+        self.assertIn("corrente_alta_sustentada", codigos_integrados)
+        self.assertIn("refrigeracao_ineficiente", codigos_integrados)
+        self.assertIs(type(analise_integrada["eletrica"]["alerta_refrigeracao_ineficiente"]), bool)
+        self.assertIsInstance(jsonable_encoder(resposta), dict)
+
+        analise_integrada.pop("avisos")
+        resposta_atualizada = asyncio.run(main.listar_equipamentos(session_id="sessao-simulada"))
+        avisos_atualizados = resposta_atualizada["equipamentos"][0]["analise_avancada"]["avisos"]
+        self.assertIn("temperatura_baixa_relativa", {aviso["codigo"] for aviso in avisos_atualizados})
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from analises.comum import serie_numerica, serie_temporal
+from analises.comum import maior_sequencia_persistente, serie_numerica, serie_temporal
 
 
 def analisar_comportamento_termico(df: pd.DataFrame) -> dict:
@@ -39,8 +39,28 @@ def analisar_comportamento_termico(df: pd.DataFrame) -> dict:
     q3 = temp_suavizada.quantile(0.75)
     iqr = float(q3 - q1)
     limite_critico = setpoint + (1.5 * iqr)
+    limite_inferior = setpoint - max(1.5 * iqr, 0.5)
 
     is_high = temp_suavizada > limite_critico
+    is_low = temp_suavizada < limite_inferior
+    timestamps_serie = None
+    if "timestamp" in df.columns:
+        timestamps_serie = serie_temporal(df.loc[temperaturas.index, "timestamp"]).reset_index(drop=True)
+    leituras_baixas, duracao_baixa, _, _, timestamps_baixos_validos = maior_sequencia_persistente(
+        is_low.reset_index(drop=True),
+        timestamps_serie,
+    )
+    leituras_altas, duracao_alta, _, _, timestamps_altos_validos = maior_sequencia_persistente(
+        is_high.reset_index(drop=True),
+        timestamps_serie,
+    )
+    alerta_temperatura_baixa = leituras_baixas >= 3 and (
+        not timestamps_baixos_validos or duracao_baixa >= 10
+    )
+    alerta_temperatura_alta = leituras_altas >= 3 and (
+        not timestamps_altos_validos or duracao_alta >= 10
+    )
+
     y = temp_suavizada.to_numpy(dtype=float)
     if timestamps_validos:
         x = horas
@@ -60,8 +80,15 @@ def analisar_comportamento_termico(df: pd.DataFrame) -> dict:
         "setpoint_aprendido": round(setpoint, 2),
         "oscilacao_natural_iqr": round(iqr, 2),
         "limite_critico_calculado": round(limite_critico, 2),
+        "limite_inferior_relativo": round(limite_inferior, 2),
         "percentual_tempo_em_risco": round(percentual_risco, 2),
         "tendencia_aquecimento_graus": round(aquecimento_projetado, 3),
         "base_temporal": "timestamps" if timestamps_validos else "leituras",
-        "falha_preditiva_detectada": alerta_preditivo
+        "falha_preditiva_detectada": alerta_preditivo,
+        "alerta_temperatura_anomala_baixa": alerta_temperatura_baixa,
+        "alerta_temperatura_anomala_alta": alerta_temperatura_alta,
+        "leituras_consecutivas_baixas": leituras_baixas,
+        "leituras_consecutivas_altas": leituras_altas,
+        "duracao_anomalia_baixa_minutos": round(duracao_baixa, 1),
+        "duracao_anomalia_alta_minutos": round(duracao_alta, 1),
     }

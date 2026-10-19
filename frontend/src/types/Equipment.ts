@@ -1,30 +1,69 @@
 export type EquipmentStatus = "normal" | "critical" | "warning" | "offline" | "historical" | "registered";
 export type EquipmentTrend = "stable" | "rising" | "offline";
 
+export type AnalysisAlert = {
+  codigo: string;
+  nivel: "critical" | "warning";
+  titulo: string;
+  detalhe: string;
+  valor: string;
+};
+
 export type AdvancedAnalysis = {
   termica: {
     setpoint_aprendido: number;
     oscilacao_natural_iqr: number;
     limite_critico_calculado: number;
+    limite_inferior_relativo?: number;
     percentual_tempo_em_risco: number;
     tendencia_aquecimento_graus: number;
     base_temporal: "timestamps" | "leituras";
     falha_preditiva_detectada: boolean;
+    alerta_temperatura_anomala_baixa?: boolean;
+    alerta_temperatura_anomala_alta?: boolean;
+    leituras_consecutivas_baixas?: number;
+    leituras_consecutivas_altas?: number;
+    duracao_anomalia_baixa_minutos?: number;
+    duracao_anomalia_alta_minutos?: number;
   } | null;
   eletrica: {
     corrente_pico_partida: number;
     corrente_trabalho_media: number;
     duty_cycle_percentual: number;
+    limite_corrente_alta_sustentada?: number;
+    leituras_consecutivas_corrente_alta?: number;
+    duracao_corrente_alta_minutos?: number;
     potencia_estimada_watts: number;
     partidas_observadas: number;
     alerta_esforco_critico: boolean;
     alerta_compressor_travando: boolean;
+    alerta_corrente_alta_sustentada?: boolean;
+    alerta_refrigeracao_ineficiente?: boolean;
   } | null;
+  qualidade?: TelemetryQualityAnalysis | null;
+  avisos?: AnalysisAlert[];
   saude: {
     health_score: number | null;
     status_geral: string;
     fatores_de_risco: string[];
   };
+};
+
+export type TelemetryQualityAnalysis = {
+  total_leituras: number;
+  timestamps_invalidos: number;
+  timestamps_duplicados: number;
+  ultima_leitura: string | null;
+  intervalo_mediano_minutos: number | null;
+  maior_intervalo_minutos: number | null;
+  lacunas_temporais: number;
+  telemetria_desatualizada: boolean;
+  leituras_temperatura_sem_valor: number;
+  temperaturas_fora_faixa_sensor: number;
+  leituras_corrente_sem_valor: number;
+  correntes_fora_faixa_sensor: number;
+  leituras_incompletas: number;
+  campos_essenciais_ausentes: string[];
 };
 
 export type Equipment = {

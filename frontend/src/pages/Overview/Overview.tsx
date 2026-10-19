@@ -4,8 +4,10 @@ import { Button } from "../../components/Button/Button";
 import { EquipmentCard } from "../../components/EquipmentCard/EquipmentCard";
 import { Icon } from "../../components/Icon/Icon";
 import { equipment } from "../../data/equipment";
+import { getSessionAlerts } from "../../services/sessionAlertService";
 import { toEquipment } from "../../services/sessionEquipmentService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
+import type { Alert } from "../../types/Alert";
 import type { IconName } from "../../types/Icon";
 
 type SummaryCardProps = {
@@ -33,12 +35,22 @@ export function Overview() {
     equipmentLoadError,
     dashboardSummary,
     dashboardSummaryError,
+    acknowledgedAlertIds,
+    acknowledgeAlerts,
     openEquipment,
     openAddEquipment,
+    notify,
   } = useOutletContext<AppOutletContext>();
   const [filter, setFilter] = useState("Todos");
   const uploadedEquipment = sessionEquipments.map((item, index) => toEquipment(item, index));
   const displayedEquipment = uploadedEquipment.length ? uploadedEquipment : equipment.slice(0, 1);
+  const pendingAlerts = getSessionAlerts(sessionEquipments)
+    .filter((alert) => !acknowledgedAlertIds.includes(alert.id))
+    .sort((left, right) => Number(right.level === "critical") - Number(left.level === "critical"));
+  const prominentAlert = pendingAlerts[0];
+  const alertEquipmentIndex = prominentAlert
+    ? sessionEquipments.findIndex((item) => item.serial === prominentAlert.equipmentSerial)
+    : -1;
 
   const filteredEquipment = useMemo(() => displayedEquipment.filter((item) => {
     const statusMatches =
@@ -75,9 +87,9 @@ export function Overview() {
         />
         <SummaryCard
           icon="bell"
-          label="Alertas detectados"
+          label="Equipamentos em atenção"
           value={dashboardSummary ? String(dashboardSummary.alertas) : "—"}
-          detail="Gerados pelas análises disponíveis"
+          detail="Status geral dos laudos disponíveis"
           tone="red"
         />
         <SummaryCard
@@ -93,6 +105,21 @@ export function Overview() {
       )}
       {equipmentLoadError && (
         <div className="empty-state" role="alert">{equipmentLoadError}</div>
+      )}
+      {prominentAlert && !equipmentLoadError && (
+        <OverviewAlert
+          alert={prominentAlert}
+          onViewEquipment={() => {
+            const item = sessionEquipments[alertEquipmentIndex];
+            if (item) openEquipment(toEquipment(item, alertEquipmentIndex));
+          }}
+          onAcknowledge={() => {
+            const saved = acknowledgeAlerts([prominentAlert.id]);
+            notify(saved
+              ? "Aviso reconhecido nesta sessão."
+              : "Aviso reconhecido apenas até a página ser recarregada; o navegador não permitiu salvar a sessão.");
+          }}
+        />
       )}
       <section className="section-header">
         <div><h2>Equipamentos</h2><span>{uploadedEquipment.length ? "Dispositivos enviados nesta sessão" : "Exemplo exibido até você enviar seu primeiro dispositivo"}</span></div>
@@ -120,5 +147,34 @@ export function Overview() {
         )}
       </section>
     </>
+  );
+}
+
+type OverviewAlertProps = {
+  alert: Alert;
+  onViewEquipment: () => void;
+  onAcknowledge: () => void;
+};
+
+function OverviewAlert({ alert, onViewEquipment, onAcknowledge }: Readonly<OverviewAlertProps>) {
+  const isCritical = alert.level === "critical";
+  return (
+    <section className="critical-alert" aria-label="Aviso pendente">
+      <span className="alert-symbol"><Icon name={alert.icon} /></span>
+      <div className="alert-copy">
+        <div>
+          <span>{isCritical ? "ALERTA CRÍTICO" : "AVISO"}</span>
+          <small>{alert.time}</small>
+        </div>
+        <strong>{alert.title} em {alert.equipmentName}</strong>
+        <p>{alert.detail} · {alert.value}</p>
+      </div>
+      <div className="alert-actions">
+        <Button onClick={onViewEquipment}>Ver equipamento</Button>
+        <Button variant="primary" onClick={onAcknowledge}>
+          <Icon name="check" />Reconhecer alerta
+        </Button>
+      </div>
+    </section>
   );
 }

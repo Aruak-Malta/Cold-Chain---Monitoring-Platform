@@ -4,5 +4,4 @@ export type NavigationItem = {
   icon: IconName;
   label: string;
   path: string;
-  count?: number;
 };

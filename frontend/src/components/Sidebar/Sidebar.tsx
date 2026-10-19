@@ -5,9 +5,10 @@ import { Icon } from "../Icon/Icon";
 type SidebarProps = {
   mobileOpen: boolean;
   close: () => void;
+  pendingAlertCount: number;
 };
 
-export function Sidebar({ mobileOpen, close }: Readonly<SidebarProps>) {
+export function Sidebar({ mobileOpen, close, pendingAlertCount }: Readonly<SidebarProps>) {
   return (
     <>
       {mobileOpen && <button className="sidebar-backdrop" aria-label="Fechar menu" onClick={close} type="button" />}
@@ -33,7 +34,7 @@ export function Sidebar({ mobileOpen, close }: Readonly<SidebarProps>) {
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.count && <b>{item.count}</b>}
+              {item.path === "/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
             </NavLink>
           ))}
           <span className="nav-label second">SISTEMA</span>

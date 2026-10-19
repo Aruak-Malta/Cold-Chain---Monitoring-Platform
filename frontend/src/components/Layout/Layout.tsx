@@ -6,6 +6,11 @@ import {
   fetchSessionEquipments,
   parseSessionEquipmentList,
 } from "../../services/sessionEquipmentService";
+import {
+  getSessionAlerts,
+  readAcknowledgedAlertIds,
+  saveAcknowledgedAlertIds,
+} from "../../services/sessionAlertService";
 import type {
   SessionDashboardSummary,
   SessionEquipmentRecord,
@@ -42,7 +47,11 @@ export function Layout() {
   const [equipmentLoadError, setEquipmentLoadError] = useState("");
   const [dashboardSummary, setDashboardSummary] = useState<SessionDashboardSummary | null>(null);
   const [dashboardSummaryError, setDashboardSummaryError] = useState("");
+  const [acknowledgedAlertIds, setAcknowledgedAlertIds] = useState<string[]>(readAcknowledgedAlertIds);
   const equipmentChangedDuringLoad = useRef(false);
+  const pendingAlertCount = equipmentLoadError
+    ? 0
+    : getSessionAlerts(sessionEquipments).filter((alert) => !acknowledgedAlertIds.includes(alert.id)).length;
 
   useEffect(() => {
     let isMounted = true;
@@ -83,6 +92,12 @@ export function Layout() {
     window.setTimeout(() => setToast(""), 3200);
   }
 
+  function acknowledgeAlerts(ids: string[]): boolean {
+    const nextIds = [...new Set([...acknowledgedAlertIds, ...ids])];
+    setAcknowledgedAlertIds(nextIds);
+    return saveAcknowledgedAlertIds(nextIds);
+  }
+
   async function handleEquipmentAdded(equipments: SessionEquipmentRecord[]) {
     equipmentChangedDuringLoad.current = true;
     setSessionEquipments(equipments);
@@ -98,7 +113,11 @@ export function Layout() {
 
   return (
     <div className="app-shell">
-      <Sidebar mobileOpen={mobileOpen} close={() => setMobileOpen(false)} />
+      <Sidebar
+        mobileOpen={mobileOpen}
+        close={() => setMobileOpen(false)}
+        pendingAlertCount={pendingAlertCount}
+      />
       <main className="main-content">
         <Header
           search={search}
@@ -114,6 +133,8 @@ export function Layout() {
               equipmentLoadError,
               dashboardSummary,
               dashboardSummaryError,
+              acknowledgedAlertIds,
+              acknowledgeAlerts,
               openEquipment: setSelectedEquipment,
               openAddEquipment: () => setAddModalOpen(true),
               notify,
@@ -126,7 +147,7 @@ export function Layout() {
           <NavLink key={item.path} to={item.path} end={item.path === "/"}>
             <Icon name={item.icon} />
             <span>{item.label}</span>
-            {item.count && <b>{item.count}</b>}
+            {item.path === "/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
           </NavLink>
         ))}
       </nav>

@@ -10,6 +10,8 @@ export type AppOutletContext = {
   equipmentLoadError: string;
   dashboardSummary: SessionDashboardSummary | null;
   dashboardSummaryError: string;
+  acknowledgedAlertIds: string[];
+  acknowledgeAlerts: (ids: string[]) => boolean;
   openEquipment: (equipment: Equipment) => void;
   openAddEquipment: () => void;
   notify: (message: string) => void;

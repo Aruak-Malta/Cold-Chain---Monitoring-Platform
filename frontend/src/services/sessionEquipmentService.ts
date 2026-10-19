@@ -1,4 +1,4 @@
-import type { AdvancedAnalysis, Equipment } from "../types/Equipment";
+import type { AdvancedAnalysis, AnalysisAlert, Equipment, TelemetryQualityAnalysis } from "../types/Equipment";
 
 const apiUrl = "http://localhost:8000";
 const sessionIdKey = "cold-chain-session-id";
@@ -112,8 +112,20 @@ function isAdvancedAnalysis(value: unknown): value is AdvancedAnalysis {
       numericFields.every((field) => isFiniteNumber(report[field])) &&
       booleanFields.every((field) => typeof report[field] === "boolean"));
   const health = value.saude;
+  const alertsValid = value.avisos === undefined ||
+    (Array.isArray(value.avisos) && value.avisos.every(isAnalysisAlert));
+  const qualityValid = value.qualidade === undefined ||
+    value.qualidade === null ||
+    isTelemetryQualityAnalysis(value.qualidade);
+  const optionalReportFieldsValid = (report: unknown, numericFields: string[], booleanFields: string[]) =>
+    report === null ||
+    (isRecord(report) &&
+      numericFields.every((field) => report[field] === undefined || isFiniteNumber(report[field])) &&
+      booleanFields.every((field) => report[field] === undefined || typeof report[field] === "boolean"));
 
   return (
+    alertsValid &&
+    qualityValid &&
     validReport(
       value.termica,
       [
@@ -124,6 +136,17 @@ function isAdvancedAnalysis(value: unknown): value is AdvancedAnalysis {
         "tendencia_aquecimento_graus",
       ],
       ["falha_preditiva_detectada"],
+    ) &&
+    optionalReportFieldsValid(
+      value.termica,
+      [
+        "limite_inferior_relativo",
+        "leituras_consecutivas_baixas",
+        "leituras_consecutivas_altas",
+        "duracao_anomalia_baixa_minutos",
+        "duracao_anomalia_alta_minutos",
+      ],
+      ["alerta_temperatura_anomala_baixa", "alerta_temperatura_anomala_alta"],
     ) &&
     (value.termica === null ||
       (isRecord(value.termica) &&
@@ -139,10 +162,51 @@ function isAdvancedAnalysis(value: unknown): value is AdvancedAnalysis {
       ],
       ["alerta_esforco_critico", "alerta_compressor_travando"],
     ) &&
+    optionalReportFieldsValid(
+      value.eletrica,
+      [
+        "limite_corrente_alta_sustentada",
+        "leituras_consecutivas_corrente_alta",
+        "duracao_corrente_alta_minutos",
+      ],
+      ["alerta_corrente_alta_sustentada", "alerta_refrigeracao_ineficiente"],
+    ) &&
     isNumberOrNull(health.health_score) &&
     typeof health.status_geral === "string" &&
     Array.isArray(health.fatores_de_risco) &&
     health.fatores_de_risco.every((factor) => typeof factor === "string")
+  );
+}
+
+function isAnalysisAlert(value: unknown): value is AnalysisAlert {
+  return (
+    isRecord(value) &&
+    typeof value.codigo === "string" &&
+    (value.nivel === "critical" || value.nivel === "warning") &&
+    typeof value.titulo === "string" &&
+    typeof value.detalhe === "string" &&
+    typeof value.valor === "string"
+  );
+}
+
+function isTelemetryQualityAnalysis(value: unknown): value is TelemetryQualityAnalysis {
+  return (
+    isRecord(value) &&
+    isFiniteNumber(value.total_leituras) &&
+    isFiniteNumber(value.timestamps_invalidos) &&
+    isFiniteNumber(value.timestamps_duplicados) &&
+    (typeof value.ultima_leitura === "string" || value.ultima_leitura === null) &&
+    isNumberOrNull(value.intervalo_mediano_minutos) &&
+    isNumberOrNull(value.maior_intervalo_minutos) &&
+    isFiniteNumber(value.lacunas_temporais) &&
+    typeof value.telemetria_desatualizada === "boolean" &&
+    isFiniteNumber(value.leituras_temperatura_sem_valor) &&
+    isFiniteNumber(value.temperaturas_fora_faixa_sensor) &&
+    isFiniteNumber(value.leituras_corrente_sem_valor) &&
+    isFiniteNumber(value.correntes_fora_faixa_sensor) &&
+    isFiniteNumber(value.leituras_incompletas) &&
+    Array.isArray(value.campos_essenciais_ausentes) &&
+    value.campos_essenciais_ausentes.every((field) => typeof field === "string")
   );
 }
 

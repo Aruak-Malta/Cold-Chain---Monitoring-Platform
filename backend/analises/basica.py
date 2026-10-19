@@ -38,13 +38,18 @@ def suavizar_serie(values: pd.Series) -> pd.Series:
     if valid_count < 3:
         return numeric_values
 
-    window = min(31, max(3, int(np.sqrt(valid_count))))
+    window = min(7, max(3, int(np.sqrt(valid_count))))
     if window % 2 == 0:
         window += 1
 
     robust_values = numeric_values.rolling(window, center=True, min_periods=1).median()
     smooth_values = robust_values.rolling(window, center=True, min_periods=1).mean()
-    return smooth_values.where(numeric_values.notna())
+    residuals = (numeric_values - smooth_values).dropna()
+    residual_median = float(residuals.median())
+    residual_mad = float((residuals - residual_median).abs().median())
+    preservation_threshold = max(3.5 * 1.4826 * residual_mad, 0.5)
+    preserve_anomaly = (numeric_values - smooth_values).abs() > preservation_threshold
+    return numeric_values.where(preserve_anomaly, smooth_values).where(numeric_values.notna())
 
 
 def processar_telemetria_basica(df: pd.DataFrame) -> dict:

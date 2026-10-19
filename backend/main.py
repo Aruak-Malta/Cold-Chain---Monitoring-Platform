@@ -7,9 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from analises.basica import processar_telemetria_basica
+from analises.avisos import gerar_avisos
 from analises.comum import serie_numerica
 from analises.termica import analisar_comportamento_termico
 from analises.eletrica import analisar_comportamento_eletrico
+from analises.qualidade import analisar_qualidade_telemetria
 from analises.saude import calcular_health_score
 
 app = FastAPI()
@@ -30,6 +32,34 @@ app.add_middleware(
 
 def converter_erro_json(error: Exception) -> HTTPException:
     return HTTPException(status_code=400, detail=f"JSON inválido: {error}")
+
+
+def analisar_registros(registros: list[dict[str, object]]) -> dict[str, object]:
+    df = pd.DataFrame(registros)
+    termica = analisar_comportamento_termico(df)
+    eletrica = analisar_comportamento_eletrico(df)
+    qualidade = analisar_qualidade_telemetria(df)
+    return {
+        "termica": termica or None,
+        "eletrica": eletrica or None,
+        "qualidade": qualidade,
+        "avisos": gerar_avisos(termica, eletrica, qualidade),
+        "saude": calcular_health_score(termica, eletrica),
+    }
+
+
+def atualizar_analises_pendentes(
+    equipamentos: dict[str, dict[str, object]],
+    registros_por_equipamento: dict[str, list[dict[str, object]]],
+) -> None:
+    for serial, equipamento in equipamentos.items():
+        analise = equipamento.get("analise_avancada")
+        registros = registros_por_equipamento.get(serial)
+        analise_antiga = isinstance(analise, dict) and "avisos" not in analise
+        analise_ausente_com_dados = not isinstance(analise, dict) and bool(registros)
+        if registros is not None and (analise_antiga or analise_ausente_com_dados):
+            equipamento["analise_avancada"] = analisar_registros(registros_por_equipamento[serial])
+
 
 @app.post("/equipamentos")
 async def cadastrar_equipamento(
@@ -91,6 +121,8 @@ async def listar_equipamentos(
     session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),
 ):
     equipamentos = equipamentos_por_sessao.get(session_id, {})
+    registros_por_equipamento = dados_brutos_por_sessao.get(session_id, {})
+    atualizar_analises_pendentes(equipamentos, registros_por_equipamento)
     return {"equipamentos": list(equipamentos.values())}
 
 
@@ -119,7 +151,7 @@ async def obter_resumo(
             analises_concluidas += 1
             saude = analise.get("saude")
             if isinstance(saude, dict):
-                if saude.get("status_geral") in {"Atenção", "Crítico"}:
+                if analise.get("avisos"):
                     alertas += 1
                 health_score = saude.get("health_score")
                 if isinstance(health_score, (int, float)) and math.isfinite(health_score):
@@ -182,15 +214,7 @@ async def executar_analise_avancada(
     if chave_serial not in dados_brutos:
         raise HTTPException(status_code=422, detail="O equipamento não possui telemetria JSON.")
 
-    df = pd.DataFrame(dados_brutos[chave_serial])
-    laudo_termico = analisar_comportamento_termico(df)
-    laudo_eletrico = analisar_comportamento_eletrico(df)
-    laudo_saude = calcular_health_score(laudo_termico, laudo_eletrico)
-    analise_avancada = {
-        "termica": laudo_termico or None,
-        "eletrica": laudo_eletrico or None,
-        "saude": laudo_saude,
-    }
+    analise_avancada = analisar_registros(dados_brutos[chave_serial])
     equipamento["analise_avancada"] = analise_avancada
 
     return {"equipamentos": list(equipamentos.values())}

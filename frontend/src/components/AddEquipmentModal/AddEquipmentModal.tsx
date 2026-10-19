@@ -45,8 +45,6 @@ export function AddEquipmentModal({
 
     setSubmitting(true);
     notify(file ? `A processar o ficheiro ${file.name}...` : `Cadastrando ${name}...`);
-    let equipmentRegistered = false;
-
     try {
       const formData = new FormData();
       formData.append("nome", name.trim());
@@ -71,29 +69,34 @@ export function AddEquipmentModal({
         return;
       }
 
-      let equipamentos = parseSessionEquipmentList(await resposta.json());
-      equipmentRegistered = true;
+      const equipamentos = parseSessionEquipmentList(await resposta.json());
       sessionStorage.setItem("equipamentos", JSON.stringify(equipamentos));
       onEquipmentAdded(equipamentos);
-      if (file) {
-        equipamentos = await analyzeSessionEquipment(serial.trim());
-        onEquipmentAdded(equipamentos);
-      }
 
       notify(
         file
-          ? `${name} adicionado com sucesso e análises históricas processadas!`
+          ? `${name} cadastrado. A análise do histórico está em andamento.`
           : `${name} foi adicionado e aguarda a primeira conexão.`,
       );
       close();
+
+      if (file) {
+        window.setTimeout(() => {
+          void analyzeSessionEquipment(serial.trim())
+            .then((updatedEquipments) => {
+              sessionStorage.setItem("equipamentos", JSON.stringify(updatedEquipments));
+              onEquipmentAdded(updatedEquipments);
+              notify(`Análise histórica de ${name} concluída.`);
+            })
+            .catch((error: unknown) => {
+              console.error(`Não foi possível analisar o histórico de ${name}:`, error);
+              notify(`${name} foi cadastrado, mas a análise do histórico falhou. Recarregue a página para tentar novamente.`);
+            });
+        }, 0);
+      }
     } catch (error) {
       console.error("Erro ao cadastrar equipamento:", error);
-      if (equipmentRegistered) {
-        notify(`${name} foi cadastrado, mas não foi possível concluir a análise avançada.`);
-        close();
-      } else {
-        notify("Falha ao comunicar com o servidor ou salvar os dados nesta sessão.");
-      }
+      notify("Falha ao comunicar com o servidor ou salvar os dados nesta sessão.");
     } finally {
       setSubmitting(false);
     }

@@ -28,6 +28,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - A visão geral mostra os dados reais agregados pelo backend para a sessão atual e não apresenta alertas, consumo, custos ou atividade de demonstração como se fossem dados reais.
 - API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos, incluindo uma curva de temperatura suavizada de forma robusta no backend.
 - Tela de análises alimentada pelos dados cadastrados na sessão, com indicadores agregados calculados pelo backend, comparação horizontal de Health Score/duty cycle/risco térmico e investigação individual com laudos e séries reais.
+- Página de avisos baseada em diagnósticos calculados pelo backend sobre a telemetria completa: desvios térmicos persistentes, corrente alta sustentada, refrigeração possivelmente ineficiente, duty cycle e qualidade/atualidade dos dados. Os reconhecimentos ficam no `sessionStorage` da aba e o contador de navegação acompanha avisos pendentes.
 - Cadastro de vários equipamentos por sessão, com prevenção de números de série repetidos dentro da mesma sessão.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
@@ -129,6 +130,14 @@ O script opcional cria leituras aleatórias a cada cinco minutos para aproximada
 
 O arquivo será gravado como `dados_simulados.json` no diretório atual. **Executar o comando a partir de `backend` sobrescreve `backend/dados_simulados.json`**, que já contém dados simulados no repositório. Faça uma cópia antes se quiser preservar o arquivo atual.
 
+Para gerar cinco cenários independentes de teste, cada um com um mês de telemetria a cada cinco minutos, execute:
+
+```powershell
+.\.venv\Scripts\python.exe gerar_bases_teste.py
+```
+
+O novo gerador salva os arquivos em `backend/bases_teste/` e não altera `dados_simulados.json`. Os cenários cobrem temperatura persistentemente alta ou baixa, corrente alta sustentada com refrigeração possivelmente ineficiente, duty cycle elevado e problemas de qualidade da telemetria. Executar novamente substitui somente os cinco arquivos com esses mesmos nomes dentro de `bases_teste`.
+
 ### macOS / Linux
 
 No terminal do backend:
@@ -168,7 +177,7 @@ Com as dependências instaladas no ambiente virtual, execute a partir da pasta `
 .\.venv\Scripts\python.exe -m unittest discover -s tests
 ```
 
-Os testes cobrem o contrato de JSON vazio, downsampling, médias com valor zero, análise avançada associada à sessão e contagem de partidas observadas.
+Os testes cobrem o contrato de JSON vazio, downsampling, médias com valor zero, análise avançada associada à sessão, contagem de partidas, detecção dos problemas injetados na base simulada, descarte de picos elétricos isolados e qualidade dos timestamps/leituras.
 
 ### Testar diretamente a API no Windows
 
@@ -330,7 +339,20 @@ A resposta básica contém:
 - As três séries suavizadas são calculadas no backend com filtro de mediana móvel adaptativo seguido de média móvel centrada: isso reduz picos breves, como abertura momentânea da porta, sem apagar variações sustentadas. A janela cresce com o tamanho da base até um limite, e as médias da telemetria continuam calculadas sobre os valores originais.
 - No painel lateral, a legenda permite destacar temperatura (verde original), umidade (azul claro) ou corrente (amarelo). As séries não selecionadas ficam esmaecidas; cada grandeza usa escala vertical independente, indicada no gráfico.
 
-O resultado `analise_avancada` contém `termica`, `eletrica` e `saude`. O risco térmico e a tendência usam os timestamps em ordem cronológica quando todos são válidos e distintos; caso contrário, são calculados pela sequência das leituras. `base_temporal` informa qual base foi usada. A análise elétrica informa partidas observadas como transições de desligado para ligado; não classifica ciclos curtos, pois isso exige um limite de duração definido e timestamps confiáveis.
+O resultado `analise_avancada` contém `termica`, `eletrica`, `qualidade`, `avisos` e `saude`. O risco térmico e a tendência usam os timestamps em ordem cronológica quando todos são válidos e distintos; caso contrário, são calculados pela sequência das leituras. `base_temporal` informa qual base foi usada. A análise elétrica informa partidas observadas como transições de desligado para ligado.
+
+### Avisos calculados
+
+- A página **Avisos** não usa eventos fixos de demonstração. O backend analisa as leituras completas e entrega diagnósticos identificados; a interface não tenta deduzir falhas a partir das séries reduzidas do gráfico.
+- Desvios térmicos altos ou baixos são relativos à distribuição aprendida para cada equipamento (limite superior de 1,5 IQR e limite inferior equivalente), sem impor uma faixa de produto universal. O desvio precisa aparecer em pelo menos três leituras consecutivas e, quando há timestamps confiáveis, durar ao menos 10 minutos.
+- Corrente alta sustentada é calculada com mediana e desvio absoluto mediano da corrente em operação; picos isolados de partida não bastam. O aviso de refrigeração possivelmente ineficiente combina corrente alta sustentada com queda térmica menor que 0,5 °C durante o trecho.
+- Também são identificados tendência de aquecimento, exposição acima do limite térmico relativo, duty cycle acima de 75% ou abaixo de 10%, telemetria antiga, lacunas de amostragem, timestamps ausentes/inválidos/duplicados e valores de temperatura/corrente ausentes ou fora de uma faixa física ampla do sensor.
+- Uma telemetria é considerada antiga quando o tempo desde a última leitura excede três cadências medianas, com mínimo de 15 minutos. Uma lacuna temporal segue o mesmo critério. Prioridade crítica em corrente sustentada é aplicada a eventos com ao menos 60 minutos; os demais desvios relativos permanecem como atenção, pois não há limites absolutos de conservação configurados.
+- Os limites físicos de qualidade são apenas verificações genéricas de sensor (-80 a 80 °C e 0 a 100 A), não limites de segurança do produto. Umidade ainda não gera avisos, conforme decisão do MVP. Os laudos térmico e elétrico continuam exigindo ao menos 30 valores numéricos válidos; os avisos de qualidade podem existir mesmo quando uma série não alcança esse mínimo.
+- O horário exibido é a leitura mais recente com timestamp válido no JSON; se o arquivo não tiver timestamps válidos, a interface informa que o horário não foi fornecido.
+- Reconhecer um aviso altera seu estado apenas nesta aba/sessão do navegador; o sistema ainda não grava histórico de auditoria em banco de dados.
+- Ao enviar um JSON pela interface, o cadastro e a telemetria aparecem primeiro; a análise avançada é iniciada em segundo plano e o modal fecha sem esperar o laudo. A interface atualiza os cartões e avisos quando o backend concluir.
+- A suavização de gráficos usa uma janela curta para reduzir ruído sem achatar padrões longos. Desvios abruptos maiores que o ruído estimado (com piso de 0,5 unidade) preservam a leitura original para não apagar possíveis anomalias.
 
 ## Armazenamento e sessões
 

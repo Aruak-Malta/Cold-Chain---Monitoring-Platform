@@ -42,6 +42,10 @@ export type SessionEquipmentRecord = {
   analise_avancada?: AdvancedAnalysis | null;
 };
 
+export type SessionReportEquipmentRecord = SessionEquipmentRecord & {
+  leituras: Record<string, unknown>[];
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -89,7 +93,9 @@ function isTelemetryAnalysis(value: unknown): value is TelemetryAnalysisResponse
   );
 }
 
-function isSessionEquipmentRecord(value: unknown): value is SessionEquipmentRecord {
+function isSessionEquipmentRecord(
+  value: unknown,
+): value is SessionEquipmentRecord & Record<string, unknown> {
   return (
     isRecord(value) &&
     typeof value.nome === "string" &&
@@ -99,6 +105,15 @@ function isSessionEquipmentRecord(value: unknown): value is SessionEquipmentReco
     (value.analise_avancada === undefined ||
       value.analise_avancada === null ||
       isAdvancedAnalysis(value.analise_avancada))
+  );
+}
+
+function isSessionReportEquipmentRecord(value: unknown): value is SessionReportEquipmentRecord {
+  return (
+    isRecord(value) &&
+    isSessionEquipmentRecord(value) &&
+    Array.isArray(value.leituras) &&
+    value.leituras.every(isRecord)
   );
 }
 
@@ -232,6 +247,27 @@ export function getSessionId(): string {
   const newId = crypto.randomUUID();
   sessionStorage.setItem(sessionIdKey, newId);
   return newId;
+}
+
+export async function fetchSessionReportData(): Promise<SessionReportEquipmentRecord[]> {
+  const response = await fetch(`${apiUrl}/relatorios/dados`, {
+    headers: { "X-Session-ID": getSessionId() },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Não foi possível consultar os dados para o relatório (erro ${response.status}).`);
+  }
+
+  const body: unknown = await response.json();
+  if (
+    !isRecord(body) ||
+    !Array.isArray(body.equipamentos) ||
+    !body.equipamentos.every(isSessionReportEquipmentRecord)
+  ) {
+    throw new Error("O servidor retornou dados de relatório inválidos.");
+  }
+
+  return body.equipamentos;
 }
 
 export async function fetchSessionEquipments(): Promise<SessionEquipmentRecord[]> {

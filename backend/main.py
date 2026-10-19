@@ -127,6 +127,24 @@ async def listar_equipamentos(
     return {"equipamentos": list(equipamentos.values())}
 
 
+@app.get("/relatorios/dados")
+async def obter_dados_relatorio(
+    session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),
+):
+    equipamentos = equipamentos_por_sessao.get(session_id, {})
+    registros_por_equipamento = dados_brutos_por_sessao.get(session_id, {})
+    atualizar_analises_pendentes(equipamentos, registros_por_equipamento)
+    return {
+        "equipamentos": [
+            {
+                **equipamento,
+                "leituras": registros_por_equipamento.get(serial, []),
+            }
+            for serial, equipamento in equipamentos.items()
+        ]
+    }
+
+
 @app.get("/resumo")
 async def obter_resumo(
     session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),

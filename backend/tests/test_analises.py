@@ -22,6 +22,33 @@ class AnaliseTelemetriaTests(unittest.TestCase):
         main.equipamentos_por_sessao.clear()
         main.dados_brutos_por_sessao.clear()
 
+    def test_relatorio_consulta_leituras_brutas_da_sessao_atual(self):
+        leitura = {
+            "timestamp": "2026-10-18T10:00:00+00:00",
+            "temperatura": -18.5,
+            "umidade": 65,
+            "corrente": 2.1,
+        }
+        arquivo = UploadFile(
+            file=BytesIO(json.dumps([leitura]).encode()),
+            filename="telemetria.json",
+        )
+        asyncio.run(main.cadastrar_equipamento(
+            nome="Freezer relatório",
+            serial="REL-001",
+            setor="Teste",
+            session_id="sessao-relatorio",
+            file=arquivo,
+        ))
+
+        resposta = asyncio.run(main.obter_dados_relatorio(session_id="sessao-relatorio"))
+        outra_sessao = asyncio.run(main.obter_dados_relatorio(session_id="outra-sessao"))
+
+        self.assertEqual(len(resposta["equipamentos"]), 1)
+        self.assertEqual(resposta["equipamentos"][0]["leituras"], [leitura])
+        self.assertEqual(resposta["equipamentos"][0]["serial"], "REL-001")
+        self.assertEqual(outra_sessao["equipamentos"], [])
+
     def test_json_vazio_mantem_contrato_e_score_indisponivel(self):
         arquivo = UploadFile(file=BytesIO(b"[]"), filename="vazio.json")
         resposta = asyncio.run(main.cadastrar_equipamento(

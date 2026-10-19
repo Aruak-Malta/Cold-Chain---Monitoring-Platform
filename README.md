@@ -129,6 +129,10 @@ Configure os aplicativos como **Linux App Service**, com Python 3.11 para o back
 
 No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie a variável `VITE_API_URL` com a URL pública do backend, por exemplo `https://<BackColdChain>.azurewebsites.net`. O workflow usa esse valor ao compilar o frontend. No App Service do backend, configure a variável de aplicação `FRONTEND_ORIGIN` com a URL pública do frontend, por exemplo `https://<FrontColdChain>.azurewebsites.net`; ela restringe o CORS à origem publicada. Depois, faça push na `main` para disparar cada deploy conforme os arquivos alterados.
 
+## Relatórios
+
+Os relatórios são consultados somente ao clicar em gerar/exportar. O período mensal padrão e as duas opções de mês acompanham o mês atual. Os indicadores de energia são estimativas integradas pelos timestamps e corrente enviados, assumindo 220 V e fator de potência 0,85; o custo aplica a tarifa salva em **Configurações → Energia e tarifas** (padrão de R$ 0,85/kWh). Leituras não são tratadas como medição de energia faturada, e períodos com timestamps ausentes não geram consumo estimado.
+
 ## Gerar dados simulados
 
 O script opcional cria leituras aleatórias a cada cinco minutos para aproximadamente sete dias, incluindo uma anomalia no trecho final. Para gerar um novo arquivo, execute a partir da pasta `backend` com o ambiente virtual preparado:
@@ -299,6 +303,14 @@ Retorna os equipamentos cadastrados para a sessão informada.
 
 - **Cabeçalho obrigatório:** o mesmo `X-Session-ID` usado no cadastro.
 - **Resposta de sucesso:** `{ "equipamentos": [...] }`. Uma sessão ainda sem cadastros retorna uma lista vazia.
+
+### `GET /relatorios/dados`
+
+Retorna, apenas para a sessão informada, os equipamentos, análises disponíveis e todas as leituras brutas carregadas por JSON. A interface consulta essa rota somente quando o usuário clica para gerar/exportar um relatório. O modelo de telemetria bruta é exportado em CSV; os relatórios consolidados, de gestão, alertas e eficiência são PDFs.
+
+- **Cabeçalho obrigatório:** `X-Session-ID`.
+- **Resposta de sucesso:** `{ "equipamentos": [{ ..., "leituras": [...] }] }`.
+- Dados de consumo em kWh, custos e identidade de usuários não são inventados: o modelo atual não coleta essas informações.
 
 ### `GET /resumo`
 

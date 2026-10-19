@@ -3,17 +3,36 @@ import { useOutletContext } from "react-router-dom";
 import { Button } from "../../components/Button/Button";
 import { Icon } from "../../components/Icon/Icon";
 import { PageTitle } from "../../components/PageTitle/PageTitle";
-import { exportReport } from "../../services/reportService";
+import { exportReport, getReportMonthOptions } from "../../services/reportService";
+import type { ReportKind } from "../../services/reportService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
 import type { IconName } from "../../types/Icon";
 
+const reportTemplates: {
+  title: string;
+  description: string;
+  icon: IconName;
+  kind: ReportKind;
+}[] = [
+  { title: "Relatório de gestão mensal", description: "Consumo, custos, alertas e Health Score.", icon: "file", kind: "management" },
+  { title: "Auditoria de alertas", description: "Log inalterável com usuários e reconhecimentos.", icon: "bell", kind: "alerts" },
+  { title: "Eficiência energética", description: "Ranking, projeções e oportunidades de economia.", icon: "bolt", kind: "energy" },
+  { title: "Dados brutos de telemetria", description: "Leituras sincronizadas para análise externa.", icon: "chart", kind: "telemetry" },
+];
+
 export function Reports() {
   const { notify } = useOutletContext<AppOutletContext>();
-  const [period, setPeriod] = useState("Junho de 2025");
+  const [currentMonth, previousMonth] = getReportMonthOptions();
+  const [period, setPeriod] = useState(currentMonth);
 
-  function generateReport(name: string) {
-    exportReport(name, period);
-    notify(`${name} gerado com sucesso.`);
+  async function generateReport(name: string, kind: ReportKind) {
+    try {
+      await exportReport(name, period, kind);
+      notify(`${name} exportado em ${kind === "telemetry" ? "CSV" : "PDF"}.`);
+    } catch (error) {
+      console.error(`Não foi possível gerar ${name}:`, error);
+      notify(error instanceof Error ? `Falha ao gerar relatório: ${error.message}` : "Falha ao gerar o relatório.");
+    }
   }
 
   return (
@@ -22,25 +41,20 @@ export function Reports() {
         eyebrow="GESTÃO E AUDITORIA"
         title="Relatórios"
         description="Exporte indicadores consolidados para sua equipe."
-        action={<Button variant="primary" onClick={() => generateReport("Relatório consolidado")}><Icon name="file" />Gerar relatório</Button>}
+        action={<Button variant="primary" onClick={() => void generateReport("Relatório consolidado", "consolidated")}><Icon name="file" />Gerar relatório</Button>}
       />
       <div className="report-builder panel">
         <div><span className="summary-icon blue"><Icon name="file" /></span><div><h2>Gerar novo relatório</h2><p>Escolha o período e exporte os dados consolidados.</p></div></div>
-        <label className="select-field">Período<select value={period} onChange={(event) => setPeriod(event.target.value)}><option>Junho de 2025</option><option>Maio de 2025</option><option>Últimos 7 dias</option><option>Período personalizado</option></select></label>
-        <Button variant="primary" onClick={() => generateReport("Relatório mensal")}>Exportar PDF</Button>
+        <label className="select-field">Período<select value={period} onChange={(event) => setPeriod(event.target.value)}><option>{currentMonth}</option><option>{previousMonth}</option><option>Últimos 7 dias</option><option>Período personalizado</option></select></label>
+        <Button variant="primary" onClick={() => void generateReport("Relatório mensal", "management")}>Exportar PDF</Button>
       </div>
       <h2 className="subsection-title">Modelos disponíveis</h2>
       <div className="report-grid">
-        {[
-          ["Relatório de gestão mensal", "Consumo, custos, alertas e Health Score.", "file"],
-          ["Auditoria de alertas", "Log inalterável com usuários e reconhecimentos.", "bell"],
-          ["Eficiência energética", "Ranking, projeções e oportunidades de economia.", "bolt"],
-          ["Dados brutos de telemetria", "Leituras sincronizadas para análise externa.", "chart"],
-        ].map(([title, description, icon]) => (
+        {reportTemplates.map(({ title, description, icon, kind }) => (
           <div className="panel report-card" key={title}>
-            <span className="summary-icon blue"><Icon name={icon as IconName} /></span>
+            <span className="summary-icon blue"><Icon name={icon} /></span>
             <h3>{title}</h3><p>{description}</p>
-            <div><small>PDF · CSV</small><Button onClick={() => generateReport(title)}>Exportar <Icon name="arrow" size="sm" /></Button></div>
+            <div><small>PDF · CSV</small><Button onClick={() => void generateReport(title, kind)}>Exportar <Icon name="arrow" size="sm" /></Button></div>
           </div>
         ))}
       </div>

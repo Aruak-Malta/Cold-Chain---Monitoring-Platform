@@ -3,13 +3,42 @@ import { useOutletContext } from "react-router-dom";
 import { Button } from "../../components/Button/Button";
 import { Icon } from "../../components/Icon/Icon";
 import { PageTitle } from "../../components/PageTitle/PageTitle";
+import { energyTariffStorageKey } from "../../services/reportService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
 
 const tabs = ["Limites e alertas", "Energia e tarifas", "Notificações", "Usuários e acesso", "Conectividade"];
 
+function readEnergyTariff(): string {
+  try {
+    return localStorage.getItem(energyTariffStorageKey) ?? "0.85";
+  } catch (error) {
+    console.error("Não foi possível ler a tarifa de energia salva:", error);
+    return "0.85";
+  }
+}
+
 export function Settings() {
   const { notify } = useOutletContext<AppOutletContext>();
   const [tab, setTab] = useState("Limites e alertas");
+  const [energyTariff, setEnergyTariff] = useState(readEnergyTariff);
+
+  function saveSettings() {
+    if (tab === "Energia e tarifas") {
+      const tariff = Number(energyTariff);
+      if (!Number.isFinite(tariff) || tariff < 0) {
+        notify("Informe uma tarifa de energia válida (zero ou maior).");
+        return;
+      }
+      try {
+        localStorage.setItem(energyTariffStorageKey, String(tariff));
+      } catch (error) {
+        console.error("Não foi possível salvar a tarifa de energia:", error);
+        notify("Não foi possível salvar a tarifa de energia neste navegador.");
+        return;
+      }
+    }
+    notify("Configurações salvas com sucesso.");
+  }
 
   return (
     <>
@@ -17,7 +46,7 @@ export function Settings() {
         eyebrow="ADMINISTRAÇÃO"
         title="Configurações"
         description="Defina limites, tarifas, notificações e regras do sistema."
-        action={<Button variant="primary" onClick={() => notify("Configurações salvas com sucesso.")}><Icon name="check" />Salvar alterações</Button>}
+        action={<Button variant="primary" onClick={saveSettings}><Icon name="check" />Salvar alterações</Button>}
       />
       <div className="settings-layout">
         <div className="settings-nav">
@@ -39,7 +68,7 @@ export function Settings() {
             <label>Watchdog de inatividade<select defaultValue="10 minutos"><option>5 minutos</option><option>10 minutos</option><option>15 minutos</option></select></label>
           </div>}
           {tab === "Energia e tarifas" && <div className="form-grid">
-            <label>Tarifa de energia<input type="number" defaultValue="0.85" step="0.01" /><small>R$/kWh</small></label>
+            <label>Tarifa de energia<input type="number" value={energyTariff} onChange={(event) => setEnergyTariff(event.target.value)} step="0.01" min="0" /><small>R$/kWh</small></label>
             <label>Bandeira tarifária<select><option>Verde</option><option>Amarela</option><option>Vermelha</option></select></label>
             <label>Meta mensal<input type="number" defaultValue="10000" /><small>kWh</small></label>
             <label>Fator de CO₂<input type="number" defaultValue="0.084" step="0.001" /></label>

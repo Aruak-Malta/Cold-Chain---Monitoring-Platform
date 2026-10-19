@@ -1,5 +1,6 @@
 import json
 import math
+import os
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -24,7 +25,7 @@ class SolicitacaoAnalise(BaseModel):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173").rstrip("/")],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

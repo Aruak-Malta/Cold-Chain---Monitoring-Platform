@@ -1,6 +1,7 @@
 import type { AdvancedAnalysis, AnalysisAlert, Equipment, TelemetryQualityAnalysis } from "../types/Equipment";
 
-const apiUrl = "http://localhost:8000";
+export const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
 const sessionIdKey = "cold-chain-session-id";
 const equipmentStorageKey = "equipamentos";
 

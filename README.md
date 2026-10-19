@@ -11,6 +11,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - [Requisitos](#requisitos)
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Como executar localmente](#como-executar-localmente)
+- [Deploy na Azure App Service](#deploy-na-azure-app-service)
 - [Gerar dados simulados](#gerar-dados-simulados)
 - [Como testar o cadastro](#como-testar-o-cadastro)
 - [API do backend](#api-do-backend)
@@ -119,6 +120,14 @@ npm run dev
 `npm ci` instala as dependências registradas em `package-lock.json`. `npm run dev` inicia o servidor de desenvolvimento do Vite; abra o endereço que ele imprimir, normalmente `http://localhost:5173`.
 
 Para encerrar qualquer um dos servidores, volte ao terminal correspondente e pressione `Ctrl+C`.
+
+## Deploy na Azure App Service
+
+O repositório contém workflows independentes em `.github/workflows/`: `main_backcoldchain.yml` publica somente `backend/` no App Service `BackColdChain`, e `main_frontcoldchain.yml` compila `frontend/` e publica os arquivos gerados no App Service `FrontColdChain`. Ambos acompanham a branch `main`, mas só são executados automaticamente quando há alterações na respectiva pasta ou no próprio workflow.
+
+Configure os aplicativos como **Linux App Service**, com Python 3.11 para o backend e Node.js 22 para o frontend. Os workflows usam os secrets de autenticação Azure já criados pelo Deployment Center; o frontend reutiliza os mesmos secrets de login do backend. Para o backend, configure `SCM_DO_BUILD_DURING_DEPLOYMENT=true` e o comando de inicialização `python -m uvicorn main:app --host 0.0.0.0 --port 8000`. Para o frontend, o pacote inclui um servidor Node.js e o script `npm start`.
+
+No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie a variável `VITE_API_URL` com a URL pública do backend, por exemplo `https://<BackColdChain>.azurewebsites.net`. O workflow usa esse valor ao compilar o frontend. No App Service do backend, configure a variável de aplicação `FRONTEND_ORIGIN` com a URL pública do frontend, por exemplo `https://<FrontColdChain>.azurewebsites.net`; ela restringe o CORS à origem publicada. Depois, faça push na `main` para disparar cada deploy conforme os arquivos alterados.
 
 ## Gerar dados simulados
 
@@ -402,7 +411,7 @@ O arquivo não é JSON válido ou não tem o formato de objeto/lista esperado. C
 
 ## Segurança e limitações
 
-- A configuração atual de CORS aceita qualquer origem e está indicada apenas para desenvolvimento do MVP. Antes de publicar, restrinja-a ao domínio real do frontend.
+- O CORS do backend permite `http://localhost:5173` por padrão; em produção, defina `FRONTEND_ORIGIN` com a origem pública do frontend.
 - `X-Session-ID` separa dados de sessão, mas não autentica usuários nem protege dados contra alguém que conheça o identificador.
 - Os dados em memória são voláteis e não são compartilhados entre múltiplos processos/instâncias do servidor.
 - Não envie dados pessoais, segredos ou telemetria confidencial para esta versão sem implementar autenticação, controles de acesso, validação/limites de upload e armazenamento apropriado.

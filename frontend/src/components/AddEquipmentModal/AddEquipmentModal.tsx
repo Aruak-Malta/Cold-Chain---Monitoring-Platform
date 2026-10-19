@@ -4,6 +4,7 @@ import { Icon } from "../Icon/Icon";
 import jsonIcon from "../../assets/icons8-json-48.png";
 import {
   analyzeSessionEquipment,
+  apiUrl,
   getSessionId,
   parseSessionEquipmentList,
 } from "../../services/sessionEquipmentService";
@@ -54,7 +55,7 @@ export function AddEquipmentModal({
         formData.append("file", file);
       }
 
-      const resposta = await fetch("http://localhost:8000/equipamentos", {
+      const resposta = await fetch(`${apiUrl}/equipamentos`, {
         method: "POST",
         headers: { "X-Session-ID": getSessionId() },
         body: formData,

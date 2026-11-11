@@ -123,11 +123,25 @@ Para encerrar qualquer um dos servidores, volte ao terminal correspondente e pre
 
 ## Deploy na Azure App Service
 
-O repositório contém workflows independentes em `.github/workflows/`: `main_backcoldchain.yml` publica somente `backend/` no App Service `BackColdChain`, e `main_frontcoldchain.yml` compila `frontend/` e publica os arquivos gerados no App Service `FrontColdChain`. Ambos acompanham a branch `main`, mas só são executados automaticamente quando há alterações na respectiva pasta ou no próprio workflow.
+O deploy usa um único **Azure Linux Web App** chamado `BackColdChain`, executando um contêiner Docker com o frontend React e a API FastAPI. O build do React acontece dentro da imagem; o FastAPI serve tanto os arquivos da interface quanto os endpoints da API. Assim, o App Service não precisa escolher entre os ambientes Python e Node, nem é necessário configurar `VITE_API_URL` ou CORS entre dois sites.
 
-Configure os aplicativos como **Linux App Service**, com Python 3.11 para o backend e Node.js 22 para o frontend. O workflow do backend usa os secrets de autenticação Azure criados pelo Deployment Center. Para o frontend, baixe o perfil de publicação do App Service `FrontColdChain` no portal Azure e salve seu conteúdo como o secret `AZURE_FRONT_PUBLISH_PROFILE` em **GitHub → Settings → Secrets and variables → Actions → Secrets**; esse perfil deve pertencer ao frontend. Para o backend, configure `SCM_DO_BUILD_DURING_DEPLOYMENT=true` e o comando de inicialização `python -m uvicorn main:app --host 0.0.0.0 --port 8000`. Para o frontend, o pacote inclui um servidor Node.js e o script `npm start`.
+Antes do primeiro deploy:
 
-No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie a variável `VITE_API_URL` com a URL pública do backend, por exemplo `https://<BackColdChain>.azurewebsites.net`. O workflow usa esse valor ao compilar o frontend. No App Service do backend, configure a variável de aplicação `FRONTEND_ORIGIN` com a URL pública do frontend, por exemplo `https://<FrontColdChain>.azurewebsites.net`; ela restringe o CORS à origem publicada. Depois, faça push na `main` para disparar cada deploy conforme os arquivos alterados.
+1. No Azure, confirme que `BackColdChain` é um **Web App Linux** com suporte a contêiner personalizado e que o principal de serviço usado pelo workflow tem permissão para atualizar a configuração do Web App.
+2. Em **GitHub → Settings → Secrets and variables → Actions → Secrets**, mantenha os três secrets Azure `AZUREAPPSERVICE_CLIENTID_99BFA4E5B2864C3988B55D22BF61566D`, `AZUREAPPSERVICE_TENANTID_00D046EC612A4387A08854C147571E7D` e `AZUREAPPSERVICE_SUBSCRIPTIONID_9782ECF29CF14329BB2F341CA199B95A`.
+3. Crie um token pessoal clássico do GitHub com escopo `read:packages` e configure os secrets `GHCR_USER` (seu nome de usuário GitHub) e `GHCR_PULL_TOKEN` (o token). O workflow usa `GITHUB_TOKEN` para publicar a imagem no GitHub Container Registry (GHCR); esses dois secrets permitem que o Azure baixe a imagem privada.
+4. Verifique se o repositório permite que o GitHub Actions publique pacotes e que o token tenha acesso ao pacote GHCR.
+
+O workflow `.github/workflows/main_backcoldchain.yml` compila e publica uma imagem identificada pelo commit, configura o App Service para baixar essa imagem do GHCR e define a porta `8000`. Ele é executado em pushes à `main` que alterem `backend/`, `frontend/` ou os arquivos do contêiner, e também pode ser iniciado manualmente em **GitHub → Actions**. O app estará disponível na URL do `BackColdChain`; a API continua acessível nessa mesma origem (por exemplo, `/docs`).
+
+Para testar localmente com Docker:
+
+```powershell
+docker build -t cold-chain .
+docker run --rm -p 8000:8000 cold-chain
+```
+
+Abra `http://localhost:8000`. Os dados da aplicação continuam mantidos em memória; reinícios do App Service podem apagá-los.
 
 ## Relatórios
 

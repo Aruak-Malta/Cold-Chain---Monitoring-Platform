@@ -1,10 +1,12 @@
 import json
 import math
 import os
+from pathlib import Path
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from analises.basica import processar_telemetria_basica
@@ -18,6 +20,8 @@ from analises.saude import calcular_health_score
 app = FastAPI()
 equipamentos_por_sessao: dict[str, dict[str, dict[str, object]]] = {}
 dados_brutos_por_sessao: dict[str, dict[str, list[dict[str, object]]]] = {}
+frontend_dir = Path(__file__).resolve().parent / "frontend_dist"
+frontend_index = frontend_dir / "index.html"
 
 
 class SolicitacaoAnalise(BaseModel):
@@ -119,8 +123,14 @@ async def cadastrar_equipamento(
 
 @app.get("/equipamentos")
 async def listar_equipamentos(
-    session_id: str = Header(..., alias="X-Session-ID", min_length=1, max_length=128),
+    session_id: str | None = Header(default=None, alias="X-Session-ID", min_length=1, max_length=128),
+    accept: str | None = Header(default=None),
 ):
+    if session_id is None:
+        if accept is not None and "text/html" in accept:
+            return await obter_frontend()
+        raise HTTPException(status_code=422, detail="O cabeçalho X-Session-ID é obrigatório.")
+
     equipamentos = equipamentos_por_sessao.get(session_id, {})
     registros_por_equipamento = dados_brutos_por_sessao.get(session_id, {})
     atualizar_analises_pendentes(equipamentos, registros_por_equipamento)
@@ -237,3 +247,27 @@ async def executar_analise_avancada(
     equipamento["analise_avancada"] = analise_avancada
 
     return {"equipamentos": list(equipamentos.values())}
+
+
+@app.get("/", include_in_schema=False)
+async def obter_frontend():
+    if not frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Frontend não encontrado.")
+    return FileResponse(frontend_index)
+
+
+@app.get("/{caminho:path}", include_in_schema=False)
+async def obter_rota_frontend(caminho: str):
+    arquivo = (frontend_dir / caminho).resolve()
+    try:
+        arquivo.relative_to(frontend_dir.resolve())
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.") from None
+
+    if arquivo.is_file():
+        return FileResponse(arquivo)
+    if Path(caminho).suffix:
+        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
+    if not frontend_index.is_file():
+        raise HTTPException(status_code=404, detail="Frontend não encontrado.")
+    return FileResponse(frontend_index)

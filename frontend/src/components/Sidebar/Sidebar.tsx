@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import coldGhostMark from "../../assets/cold-ghost-mark.jpeg";
 import { navigationItems } from "../../data/navigation";
 import { Icon } from "../Icon/Icon";
 
@@ -14,8 +15,8 @@ export function Sidebar({ mobileOpen, close, pendingAlertCount }: Readonly<Sideb
       {mobileOpen && <button className="sidebar-backdrop" aria-label="Fechar menu" onClick={close} type="button" />}
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
-          <span className="brand-mark"><img src="/brand/sentinela-mark.jpeg" alt="" /></span>
-          <span>Frio<span>Sentinela</span></span>
+          <span className="brand-mark"><img src={coldGhostMark} alt="" /></span>
+          <span>Cold <span>Ghost</span></span>
         </div>
         <div className="store-switcher">
           <span className="store-avatar">SC</span>

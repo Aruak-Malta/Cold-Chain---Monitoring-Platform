@@ -48,7 +48,7 @@
   text-decoration: none;
 }
 
-.sentinela-mark {
+.cold-ghost-mark {
   display: block;
   width: 38px;
   height: 38px;
@@ -876,7 +876,7 @@
   text-align: center;
 }
 
-.sales-final-cta>.sentinela-mark {
+.sales-final-cta>.cold-ghost-mark {
   width: 58px;
   height: 58px;
   margin-bottom: 19px;
@@ -919,7 +919,7 @@
   font-size: 15px;
 }
 
-.sales-footer .sentinela-mark {
+.sales-footer .cold-ghost-mark {
   width: 30px;
   height: 30px;
   border-radius: 8px;
@@ -986,7 +986,7 @@
     font-size: 15px;
   }
 
-  .sales-brand .sentinela-mark {
+  .sales-brand .cold-ghost-mark {
     width: 34px;
     height: 34px;
     border-radius: 9px;

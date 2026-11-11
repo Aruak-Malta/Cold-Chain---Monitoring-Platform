@@ -10,6 +10,8 @@ import {
   Zap,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import coldGhostMark from "../../assets/cold-ghost-mark.jpeg";
+import coldGhostSketch from "../../assets/cold-ghost-sketch.png";
 import "./LandingPage.css";
 
 const plans = [
@@ -65,8 +67,8 @@ const plans = [
 function BrandMark({ className = "" }: Readonly<{ className?: string }>) {
   return (
     <img
-      className={`sentinela-mark ${className}`}
-      src="/brand/sentinela-mark.jpeg"
+      className={`cold-ghost-mark ${className}`}
+      src={coldGhostMark}
       alt=""
       aria-hidden="true"
     />
@@ -78,9 +80,9 @@ export function LandingPage() {
     <main className="sales-page">
       <header className="sales-header">
         <div className="sales-container sales-header-inner">
-          <a className="sales-brand" href="#inicio" aria-label="FrioSentinela, início">
+          <a className="sales-brand" href="#inicio" aria-label="Cold Ghost, início">
             <BrandMark />
-            <span>FrioSentinela</span>
+            <span>Cold Ghost</span>
           </a>
           <nav className="sales-nav" aria-label="Navegação principal">
             <a href="#funcionalidades">Funcionalidades</a>
@@ -119,7 +121,7 @@ export function LandingPage() {
           </div>
 
           <div className="sales-dashboard-wrap" aria-label="Prévia ilustrativa do painel">
-            <img className="sales-sketch-watermark" src="/brand/sentinela-sketch.png" alt="" />
+            <img className="sales-sketch-watermark" src={coldGhostSketch} alt="" />
             <div className="sales-dashboard">
               <div className="sales-dashboard-head">
                 <div>
@@ -250,7 +252,7 @@ export function LandingPage() {
       <section className="sales-signup" id="cadastro">
         <div className="sales-signup-card">
           <div className="sales-signup-aside">
-            <img src="/brand/sentinela-sketch.png" alt="" aria-hidden="true" />
+            <img src={coldGhostSketch} alt="" aria-hidden="true" />
             <div className="sales-signup-copy">
               <span className="sales-eyebrow">FRIOSENTINELA</span>
               <h2>Comece a proteger seu estoque hoje.</h2>
@@ -263,7 +265,7 @@ export function LandingPage() {
           </div>
           <div className="sales-signup-action">
             <span className="sales-eyebrow">PRÓXIMO PASSO</span>
-            <h3>Veja o FrioSentinela em ação.</h3>
+            <h3>Veja o Cold Ghost em ação.</h3>
             <p>
               Acesse o painel para explorar a demonstração e conhecer as análises
               disponíveis para os dados dos seus equipamentos.
@@ -289,9 +291,9 @@ export function LandingPage() {
         <div className="sales-container sales-footer-inner">
           <a className="sales-brand" href="#inicio">
             <BrandMark />
-            <span>FrioSentinela</span>
+            <span>Cold Ghost</span>
           </a>
-          <p>© {new Date().getFullYear()} FrioSentinela. Todos os direitos reservados.</p>
+          <p>© {new Date().getFullYear()} Cold Ghost. Todos os direitos reservados.</p>
           <a href="#inicio">Voltar ao início <ArrowRight aria-hidden="true" /></a>
         </div>
       </footer>

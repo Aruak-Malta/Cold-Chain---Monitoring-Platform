@@ -172,7 +172,7 @@ function addCommonPdfLines(
   filtered: FilteredReportData,
 ): void {
   lines.push(
-    "Relatório FrioSentinela",
+    "Relatório Cold Ghost",
     title,
     `Período selecionado: ${period}`,
     `Gerado em: ${new Date().toLocaleString("pt-BR")}`,

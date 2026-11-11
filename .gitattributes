@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+frontend/src/assets/cold-ghost-mark.jpeg filter=lfs diff=lfs merge=lfs -text
+frontend/src/assets/cold-ghost-sketch.png filter=lfs diff=lfs merge=lfs -text
+frontend/src/assets/icons8-json-48.png filter=lfs diff=lfs merge=lfs -text

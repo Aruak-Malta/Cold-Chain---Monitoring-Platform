@@ -6,18 +6,20 @@ import { Equipment } from "./pages/Equipment/Equipment";
 import { Overview } from "./pages/Overview/Overview";
 import { Reports } from "./pages/Reports/Reports";
 import { Settings } from "./pages/Settings/Settings";
+import { LandingPage } from "./pages/LandingPage/LandingPage";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<Layout />}>
-          <Route path="/" element={<Overview />} />
-          <Route path="/equipamentos" element={<Equipment />} />
-          <Route path="/alertas" element={<Alerts />} />
-          <Route path="/analises" element={<Analytics />} />
-          <Route path="/relatorios" element={<Reports />} />
-          <Route path="/configuracoes" element={<Settings />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/painel" element={<Layout />}>
+          <Route index element={<Overview />} />
+          <Route path="equipamentos" element={<Equipment />} />
+          <Route path="alertas" element={<Alerts />} />
+          <Route path="analises" element={<Analytics />} />
+          <Route path="relatorios" element={<Reports />} />
+          <Route path="configuracoes" element={<Settings />} />
         </Route>
       </Routes>
     </BrowserRouter>

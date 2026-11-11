@@ -14,7 +14,7 @@ export function Sidebar({ mobileOpen, close, pendingAlertCount }: Readonly<Sideb
       {mobileOpen && <button className="sidebar-backdrop" aria-label="Fechar menu" onClick={close} type="button" />}
       <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
         <div className="brand">
-          <span className="brand-mark"><Icon name="snow" /></span>
+          <span className="brand-mark"><img src="/brand/sentinela-mark.jpeg" alt="" /></span>
           <span>Frio<span>Sentinela</span></span>
         </div>
         <div className="store-switcher">
@@ -28,18 +28,18 @@ export function Sidebar({ mobileOpen, close, pendingAlertCount }: Readonly<Sideb
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === "/"}
+              end={item.path === "/painel"}
               onClick={close}
               className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.path === "/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
+              {item.path === "/painel/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
             </NavLink>
           ))}
           <span className="nav-label second">SISTEMA</span>
           <NavLink
-            to="/configuracoes"
+            to="/painel/configuracoes"
             onClick={close}
             className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
           >

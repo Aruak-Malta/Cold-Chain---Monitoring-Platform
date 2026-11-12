@@ -87,7 +87,7 @@ export function LandingPage() {
           <nav className="sales-nav" aria-label="Navegação principal">
             <a href="#funcionalidades">Funcionalidades</a>
             <a href="#planos">Planos</a>
-            <a href="#cadastro">Cadastro</a>
+            <Link to="/cadastro">Cadastro</Link>
             <Link className="sales-nav-cta" to="/painel">Acessar Painel</Link>
           </nav>
         </div>
@@ -110,9 +110,9 @@ export function LandingPage() {
               seu estoque.
             </p>
             <div className="sales-hero-actions">
-              <a className="sales-button sales-button-primary" href="#cadastro">
+              <Link className="sales-button sales-button-primary" to="/cadastro">
                 Quero proteger meu negócio <ArrowRight aria-hidden="true" />
-              </a>
+              </Link>
               <div className="sales-proof">
                 <span className="sales-proof-mark"><Check aria-hidden="true" /></span>
                 <span>Mais controle para sua operação</span>
@@ -240,9 +240,9 @@ export function LandingPage() {
                     <li key={feature}><Check aria-hidden="true" />{feature}</li>
                   ))}
                 </ul>
-                <a className={`sales-plan-button${plan.featured ? " plan-button-featured" : ""}`} href="#cadastro">
+                <Link className={`sales-plan-button${plan.featured ? " plan-button-featured" : ""}`} to="/cadastro">
                   {plan.action}
-                </a>
+                </Link>
               </article>
             ))}
           </div>
@@ -267,13 +267,13 @@ export function LandingPage() {
             <span className="sales-eyebrow">PRÓXIMO PASSO</span>
             <h3>Veja o Cold Ghost em ação.</h3>
             <p>
-              Acesse o painel para explorar a demonstração e conhecer as análises
-              disponíveis para os dados dos seus equipamentos.
+              Crie sua conta e cadastre sua empresa para começar a acompanhar
+              seus equipamentos e as informações da sua operação.
             </p>
-            <Link className="sales-button sales-button-dark" to="/painel">
-              Acessar o painel <ArrowRight aria-hidden="true" />
+            <Link className="sales-button sales-button-dark" to="/cadastro">
+              Criar minha conta <ArrowRight aria-hidden="true" />
             </Link>
-            <span className="sales-signup-footnote">Sem cadastro ou senha para conhecer a demonstração.</span>
+            <span className="sales-signup-footnote">Crie sua conta e cadastre sua empresa para começar.</span>
           </div>
         </div>
       </section>

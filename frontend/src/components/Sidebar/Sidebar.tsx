@@ -29,18 +29,18 @@ export function Sidebar({ mobileOpen, close, pendingAlertCount }: Readonly<Sideb
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === "/painel"}
+              end={item.path === "/demo"}
               onClick={close}
               className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
             >
               <Icon name={item.icon} />
               <span>{item.label}</span>
-              {item.path === "/painel/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
+              {item.path === "/demo/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
             </NavLink>
           ))}
           <span className="nav-label second">SISTEMA</span>
           <NavLink
-            to="/painel/configuracoes"
+            to="/demo/configuracoes"
             onClick={close}
             className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
           >

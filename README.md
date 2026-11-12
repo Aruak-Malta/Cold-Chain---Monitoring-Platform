@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** os cadastros enviados pela interface são mantidos por sessão na memória do backend e no `sessionStorage` do navegador. Ainda não há banco de dados, autenticação ou persistência após reiniciar o backend. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout, apresenta os dados do JSON e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. A tela de análises usa os laudos e séries da sessão, sem recorrer aos dados fixos da demonstração; métricas indisponíveis não são estimadas.
+> **Estado do projeto:** autenticação, perfil de conta e empresas são gerenciados pelo Supabase; o cadastro de empresas exige ao menos um nome e CNPJ válido. Os cadastros de equipamentos continuam mantidos por sessão na memória do backend e no `sessionStorage` do navegador. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout, apresenta os dados do JSON e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. A tela de análises usa os laudos e séries da sessão, sem recorrer aos dados fixos da demonstração; métricas indisponíveis não são estimadas.
 
 ## Índice
 
@@ -42,6 +42,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - TypeScript
 - React Router
 - Vite
+- Supabase Auth e Postgres
 
 **Backend**
 
@@ -78,6 +79,21 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 ```
 
 ## Como executar localmente
+
+### Configurar autenticação e empresas no Supabase
+
+1. No projeto Supabase, execute [`supabase/auth-setup.sql`](./supabase/auth-setup.sql) no SQL Editor. O script mantém o Supabase Auth como fonte das credenciais, torna `Login.senha` opcional (a aplicação nunca grava senhas nessa tabela), habilita RLS e restringe os registros de `Login` e `Company` ao usuário autenticado. As tabelas devem ter os campos `Login(id_login, email, nome)` e `Company(id_company, id_login, nome, cnpj)`, com `Company.id_login` relacionado a `Login.id_login`.
+2. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
+3. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
+
+   ```dotenv
+   VITE_SUPABASE_URL=https://<project-ref>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<public-anon-key>
+   ```
+
+4. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
+
+O botão **Ver demonstração** continua acessível sem conta em `/demo`. **Acessar Painel** abre o login; após autenticar, uma conta sem empresas é encaminhada ao cadastro obrigatório. O login Google cria/valida a sessão pelo Supabase Auth e também segue para o cadastro de empresas quando necessário.
 
 É necessário manter **dois terminais abertos**: um para o backend e outro para o frontend.
 
@@ -123,11 +139,14 @@ Para encerrar qualquer um dos servidores, volte ao terminal correspondente e pre
 
 ## Deploy na Azure App Service
 
-O repositório contém workflows independentes em `.github/workflows/`: `main_backcoldchain.yml` publica somente `backend/` no App Service `BackColdChain`, e `main_frontcoldchain.yml` compila `frontend/` e publica os arquivos gerados no App Service `FrontColdChain`. Ambos acompanham a branch `main`, mas só são executados automaticamente quando há alterações na respectiva pasta ou no próprio workflow.
+O workflow disponível em `.github/workflows/main_backcoldchain.yml` constrói uma única imagem Docker com o frontend React e a API FastAPI e publica essa imagem no App Service `BackColdChain`. Ele acompanha a branch `main` e é disparado por alterações em `backend/`, `frontend/`, `Dockerfile`, `.dockerignore` ou no próprio workflow.
 
-Configure os aplicativos como **Linux App Service**, com Python 3.11 para o backend e Node.js 22 para o frontend. O workflow do backend usa os secrets de autenticação Azure criados pelo Deployment Center. Para o frontend, baixe o perfil de publicação do App Service `FrontColdChain` no portal Azure e salve seu conteúdo como o secret `AZURE_FRONT_PUBLISH_PROFILE` em **GitHub → Settings → Secrets and variables → Actions → Secrets**; esse perfil deve pertencer ao frontend. Para o backend, configure `SCM_DO_BUILD_DURING_DEPLOYMENT=true` e o comando de inicialização `python -m uvicorn main:app --host 0.0.0.0 --port 8000`. Para o frontend, o pacote inclui um servidor Node.js e o script `npm start`.
+Antes do deploy, configure em **GitHub → Settings → Secrets and variables → Actions**:
 
-No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie a variável `VITE_API_URL` com a URL pública do backend, por exemplo `https://<BackColdChain>.azurewebsites.net`. O workflow usa esse valor ao compilar o frontend. No App Service do backend, configure a variável de aplicação `FRONTEND_ORIGIN` com a URL pública do frontend, por exemplo `https://<FrontColdChain>.azurewebsites.net`; ela restringe o CORS à origem publicada. Depois, faça push na `main` para disparar cada deploy conforme os arquivos alterados.
+- Em **Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` com os valores públicos do projeto Supabase. O workflow falha antes de construir a imagem se algum estiver ausente. Esses valores são incorporados ao JavaScript do navegador; não use a chave `service_role`.
+- Em **Secrets**, confirme `GHCR_USER` e `GHCR_PULL_TOKEN` (com acesso `read:packages`) e os três secrets `AZUREAPPSERVICE_CLIENTID_99BFA4E5B2864C3988B55D22BF61566D`, `AZUREAPPSERVICE_TENANTID_00D046EC612A4387A08854C147571E7D` e `AZUREAPPSERVICE_SUBSCRIPTIONID_9782ECF29CF14329BB2F341CA199B95A`, usados pelo workflow para autenticar no Azure.
+
+O Dockerfile recebe as duas variáveis Supabase durante `npm run build`; configurá-las somente como variáveis de execução do App Service não altera o bundle já compilado. O frontend e a API são servidos pela mesma origem, portanto `VITE_API_URL` e `FRONTEND_ORIGIN` não são necessários nesse deploy integrado. Depois de confirmar que o SQL do Supabase foi executado e o provedor Google está configurado com as URLs de redirecionamento de produção, faça push na `main` para construir e publicar a nova imagem.
 
 ## Relatórios
 
@@ -382,6 +401,7 @@ O resultado `analise_avancada` contém `termica`, `eletrica`, `qualidade`, `avis
 - O backend guarda registros em memória, separados por identificador de sessão. Não grava esses dados em arquivo ou banco.
 - A telemetria bruta fica somente na memória do backend para permitir a análise avançada; reiniciar o backend apaga também esses dados e os resultados.
 - O frontend guarda a última lista devolvida pelo backend em `sessionStorage["equipamentos"]`.
+- O Supabase Auth autentica contas; os perfis e empresas ficam nas tabelas públicas `Login` e `Company`, protegidas por RLS. Isso não torna os endpoints de telemetria do backend autenticados.
 - A interface carrega a lista da sessão pela API e converte cada cadastro para o modelo `Equipment` já usado pelos cartões existentes. Assim, dados de demonstração e cadastrados passam pelo mesmo componente visual; valores que não existem no JSON aparecem como `—`, sem estimativas inventadas.
 - O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON e exibindo os resultados da análise avançada. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
 - `sessionStorage` pertence à aba do navegador e sobrevive a recarregamentos da página, mas pode ser limpo ao encerrar a sessão da aba.
@@ -423,9 +443,9 @@ O arquivo não é JSON válido ou não tem o formato de objeto/lista esperado. C
 
 ## Segurança e limitações
 
-- O CORS do backend permite `http://localhost:5173` por padrão; em produção, defina `FRONTEND_ORIGIN` com a origem pública do frontend.
-- `X-Session-ID` separa dados de sessão, mas não autentica usuários nem protege dados contra alguém que conheça o identificador.
+- No deploy integrado do Docker, frontend e API compartilham a mesma origem e não precisam de CORS entre si. Se o frontend for hospedado separadamente, defina `FRONTEND_ORIGIN` com a origem pública exata do frontend.
+- O Supabase Auth protege os perfis e empresas, mas os endpoints de telemetria ainda usam apenas `X-Session-ID`, que não autentica usuários nem protege dados contra alguém que conheça o identificador.
 - Os dados em memória são voláteis e não são compartilhados entre múltiplos processos/instâncias do servidor.
-- Não envie dados pessoais, segredos ou telemetria confidencial para esta versão sem implementar autenticação, controles de acesso, validação/limites de upload e armazenamento apropriado.
+- Não envie telemetria confidencial para esta versão sem validar a autenticação e autorização do usuário também nos endpoints do backend, além de implementar limites de upload e armazenamento apropriado.
 - O formulário atualmente envia nome, número de série e arquivo JSON; outros campos visuais do modal, como setor e tensão, ainda não fazem parte do cadastro da API.
 - Os cartões demonstrativos continuam visíveis junto dos equipamentos cadastrados. A tela de análises ainda não consolida os dados dos JSONs; seus gráficos são demonstrativos.

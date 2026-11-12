@@ -131,7 +131,7 @@ export function Overview() {
               </button>
             ))}
           </div>
-          <Button onClick={() => navigate("/painel/equipamentos")}>Ver todos <Icon name="arrow" size="sm" /></Button>
+          <Button onClick={() => navigate("/demo/equipamentos")}>Ver todos <Icon name="arrow" size="sm" /></Button>
         </div>
       </section>
       <section className="equipment-grid">

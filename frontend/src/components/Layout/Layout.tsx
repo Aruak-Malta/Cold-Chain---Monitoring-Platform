@@ -144,10 +144,10 @@ export function Layout() {
       </main>
       <nav className="bottom-nav">
         {navigationItems.slice(0, 4).map((item) => (
-          <NavLink key={item.path} to={item.path} end={item.path === "/painel"}>
+          <NavLink key={item.path} to={item.path} end={item.path === "/demo"}>
             <Icon name={item.icon} />
             <span>{item.label}</span>
-            {item.path === "/painel/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
+            {item.path === "/demo/alertas" && pendingAlertCount > 0 && <b>{pendingAlertCount}</b>}
           </NavLink>
         ))}
       </nav>

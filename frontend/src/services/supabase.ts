@@ -92,6 +92,22 @@ export async function fetchAccountDashboard(email: string): Promise<AccountDashb
   };
 }
 
+export async function syncLoginName(email: string, name: string): Promise<void> {
+  const loginId = await findLoginId(email);
+  if (loginId === null) {
+    return;
+  }
+
+  const { error } = await getSupabaseClient()
+    .from("Login")
+    .update({ nome: name })
+    .eq("id_login", loginId);
+
+  if (error) {
+    throw new Error(`Não foi possível atualizar o nome do perfil: ${error.message}`);
+  }
+}
+
 export async function saveCompanies(
   email: string,
   name: string,

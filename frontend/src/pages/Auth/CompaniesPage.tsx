@@ -6,6 +6,7 @@ import {
   accountHasCompany,
   getSupabaseClient,
   saveCompanies,
+  syncLoginName,
 } from "../../services/supabase";
 import { saveSelectedCompanyId } from "../../services/companySelectionService";
 import "./Auth.css";
@@ -39,6 +40,30 @@ function isValidCnpj(value: string) {
   return digits.endsWith(`${firstDigit}${secondDigit}`);
 }
 
+function getFullName(metadata: Record<string, unknown>, fallback: string): string {
+  const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+  if (fullName.split(/\s+/).length > 1) {
+    return fullName;
+  }
+
+  const givenName = [metadata.given_name, metadata.first_name]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+    ?.trim();
+  const familyName = [metadata.family_name, metadata.last_name]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0)
+    ?.trim();
+  if (givenName && familyName) {
+    return `${givenName} ${familyName}`;
+  }
+
+  const providerName = typeof metadata.name === "string" ? metadata.name.trim() : "";
+  if (providerName) {
+    return providerName;
+  }
+  const profileName = typeof metadata.nome === "string" ? metadata.nome.trim() : "";
+  return profileName || fullName || fallback;
+}
+
 export function CompaniesPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -63,19 +88,20 @@ export function CompaniesPage() {
           return;
         }
         if (!active) return;
+        const stateName = (location.state as { name?: string } | null)?.name;
+        const fullName = stateName || getFullName(
+          data.user.user_metadata,
+          data.user.email.split("@")[0],
+        );
+        setEmail(data.user.email);
+        setName(fullName);
+        await syncLoginName(data.user.email, fullName);
+        if (!active) return;
         if (await accountHasCompany(data.user.email) && !isAddingCompany) {
           if (active) navigate("/app", { replace: true });
           return;
         }
         if (!active) return;
-        setEmail(data.user.email);
-        const metadataName = data.user.user_metadata.nome ?? data.user.user_metadata.full_name;
-        const stateName = (location.state as { name?: string } | null)?.name;
-        setName(
-          stateName ||
-            (typeof metadataName === "string" ? metadataName : "") ||
-            data.user.email.split("@")[0],
-        );
       } catch (error) {
         if (active) {
           setErrorMessage(error instanceof Error ? error.message : "Não foi possível validar sua sessão.");

@@ -124,10 +124,6 @@ button {
   display: none;
 }
 
-.company-selector[open]>summary {
-  border-color: #347079;
-}
-
 .company-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -180,6 +176,29 @@ button {
   color: #eef7f8;
   font-size: 11px;
   font-weight: 600;
+}
+
+.company-chevron-down {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  transform: rotate(90deg);
+}
+
+.company-add-single {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: #1b424c;
+  color: #82d7ca;
+}
+
+.company-add-single:hover {
+  background: #285660;
 }
 
 .company-option small {
@@ -682,17 +701,74 @@ button {
   width: 100%;
   color: inherit;
   text-align: left;
+  cursor: default;
+}
+
+.account-home-company-selector {
+  position: relative;
+}
+
+.account-home-company-selector>summary {
   cursor: pointer;
+  list-style: none;
 }
 
-.account-company-card:hover,
-.account-company-card-selected {
-  border-color: #6bb8ad;
+.account-home-company-selector>summary::-webkit-details-marker {
+  display: none;
 }
 
-.account-company-card:focus-visible {
-  outline: 2px solid #248f82;
-  outline-offset: 2px;
+.account-home-company-selector>summary .company-chevron-down {
+  margin-left: auto;
+  color: #71848a;
+}
+
+.account-home-company-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 20;
+  max-height: min(60vh, 360px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #e0e7e8;
+  border-radius: 12px;
+  background: white;
+  box-shadow: 0 12px 30px rgba(26, 54, 61, .12);
+}
+
+.account-home-company-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #16232f;
+  text-align: left;
+}
+
+.account-home-company-option:hover {
+  background: #f3f6f7;
+}
+
+.account-home-company-option>span,
+.account-home-company-option strong,
+.account-home-company-option small {
+  display: block;
+}
+
+.account-home-company-option strong {
+  font-size: 12px;
+}
+
+.account-home-company-option small {
+  margin-top: 3px;
+  color: #839499;
+  font-size: 10px;
 }
 
 .account-company-card>div {

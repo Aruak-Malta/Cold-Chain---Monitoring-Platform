@@ -62,12 +62,12 @@ export function Sidebar({
           <span className="brand-mark"><img src={coldGhostMark} alt="" /></span>
           <span>Cold <span>Ghost</span></span>
         </div>
-        {accountDashboard ? (
+        {accountDashboard && accountDashboard.companies.length > 1 ? (
           <details className="company-selector" ref={companySelectorRef}>
             <summary className="store-switcher">
               <span className="store-avatar">{initials(companyName)}</span>
               <span><small>Sua empresa</small><strong>{companyName}</strong></span>
-              <Icon name="chevron" size="sm" />
+              <span className="company-chevron-down"><Icon name="chevron" size="sm" /></span>
             </summary>
             <div className="company-menu">
               {accountDashboard.companies.map((company) => {
@@ -98,6 +98,20 @@ export function Sidebar({
               </button>
             </div>
           </details>
+        ) : accountDashboard ? (
+          <div className="store-switcher">
+            <span className="store-avatar">{initials(companyName)}</span>
+            <span><small>Sua empresa</small><strong>{companyName}</strong></span>
+            <button
+              aria-label="Adicionar empresa"
+              className="company-add-single"
+              onClick={() => navigate("/empresas?adicionar=1")}
+              title="Adicionar empresa"
+              type="button"
+            >
+              <Icon name="plus" size="sm" />
+            </button>
+          </div>
         ) : (
           <div className="store-switcher">
             <span className="store-avatar">{initials(companyName)}</span>

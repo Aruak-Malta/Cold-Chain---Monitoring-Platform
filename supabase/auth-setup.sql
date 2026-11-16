@@ -7,6 +7,8 @@ ALTER TABLE public."Company" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public."Login", public."Company" FROM PUBLIC, anon, authenticated;
 GRANT SELECT (id_login, email, nome), INSERT (email, nome)
   ON TABLE public."Login" TO authenticated;
+GRANT UPDATE (nome)
+  ON TABLE public."Login" TO authenticated;
 GRANT SELECT (id_company, id_login), INSERT (id_login, nome, cnpj)
   ON TABLE public."Company" TO authenticated;
 
@@ -50,6 +52,21 @@ CREATE POLICY cold_ghost_login_insert_self_guard
   ON public."Login"
   AS RESTRICTIVE
   FOR INSERT TO authenticated
+  WITH CHECK (lower(email) = lower((SELECT auth.jwt() ->> 'email')));
+
+DROP POLICY IF EXISTS cold_ghost_login_update_self ON public."Login";
+CREATE POLICY cold_ghost_login_update_self
+  ON public."Login"
+  FOR UPDATE TO authenticated
+  USING (lower(email) = lower((SELECT auth.jwt() ->> 'email')))
+  WITH CHECK (lower(email) = lower((SELECT auth.jwt() ->> 'email')));
+
+DROP POLICY IF EXISTS cold_ghost_login_update_self_guard ON public."Login";
+CREATE POLICY cold_ghost_login_update_self_guard
+  ON public."Login"
+  AS RESTRICTIVE
+  FOR UPDATE TO authenticated
+  USING (lower(email) = lower((SELECT auth.jwt() ->> 'email')))
   WITH CHECK (lower(email) = lower((SELECT auth.jwt() ->> 'email')));
 
 DROP POLICY IF EXISTS cold_ghost_company_read_self ON public."Company";

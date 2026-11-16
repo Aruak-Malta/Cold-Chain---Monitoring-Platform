@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Button } from "../../components/Button/Button";
 import { EquipmentCard } from "../../components/EquipmentCard/EquipmentCard";
@@ -79,6 +79,7 @@ export function Overview() {
       : value;
   };
   const firstName = accountDashboard?.name.trim().split(/\s+/)[0];
+  const companySelectorRef = useRef<HTMLDetailsElement>(null);
 
   return (
     <>
@@ -97,25 +98,54 @@ export function Overview() {
       {mode === "account" && accountDashboard && (
         <>
           <section className="section-header account-companies-heading">
-            <div><h2>Suas empresas</h2><span>Dados cadastrados na sua conta</span></div>
+            <div><h2>Empresa</h2><span>{accountDashboard.companies.length > 1 ? "Selecione a empresa que deseja acessar" : "Empresa vinculada à sua conta"}</span></div>
           </section>
           <section className="account-company-grid">
-            {accountDashboard.companies.map((company) => (
-              <button
-                aria-pressed={String(company.id_company) === String(selectedCompany?.id_company)}
-                className={`summary-card account-company-card${String(company.id_company) === String(selectedCompany?.id_company) ? " account-company-card-selected" : ""}`}
-                key={company.id_company}
-                onClick={() => selectCompany(company.id_company)}
-                type="button"
-              >
-                <span className="summary-icon blue"><Icon name="grid" /></span>
-                <div>
-                  <span>Empresa</span>
-                  <strong>{company.nome}</strong>
-                  <small>CNPJ {formatCnpj(company.cnpj)}</small>
-                </div>
-              </button>
-            ))}
+            {selectedCompany && (
+              accountDashboard.companies.length > 1 ? (
+                <details className="account-home-company-selector" ref={companySelectorRef}>
+                  <summary className="summary-card account-company-card">
+                    <span className="summary-icon blue"><Icon name="grid" /></span>
+                    <div>
+                      <span>Empresa</span>
+                      <strong>{selectedCompany.nome}</strong>
+                      <small>CNPJ {formatCnpj(selectedCompany.cnpj)}</small>
+                    </div>
+                    <span className="company-chevron-down"><Icon name="chevron" size="sm" /></span>
+                  </summary>
+                  <div className="account-home-company-menu">
+                    {accountDashboard.companies.map((company) => (
+                      <button
+                        className="account-home-company-option"
+                        key={company.id_company}
+                        onClick={() => {
+                          selectCompany(company.id_company);
+                          if (companySelectorRef.current) companySelectorRef.current.open = false;
+                        }}
+                        type="button"
+                      >
+                        <span>
+                          <strong>{company.nome}</strong>
+                          <small>CNPJ {formatCnpj(company.cnpj)}</small>
+                        </span>
+                        {String(company.id_company) === String(selectedCompany.id_company) && (
+                          <Icon name="check" size="sm" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              ) : (
+                <article className="summary-card account-company-card">
+                  <span className="summary-icon blue"><Icon name="grid" /></span>
+                  <div>
+                    <span>Empresa</span>
+                    <strong>{selectedCompany.nome}</strong>
+                    <small>CNPJ {formatCnpj(selectedCompany.cnpj)}</small>
+                  </div>
+                </article>
+              )
+            )}
           </section>
         </>
       )}

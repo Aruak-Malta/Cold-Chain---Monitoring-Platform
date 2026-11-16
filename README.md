@@ -84,16 +84,17 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 
 1. No projeto Supabase, execute [`supabase/auth-setup.sql`](./supabase/auth-setup.sql) no SQL Editor. O script mantém o Supabase Auth como fonte das credenciais, torna `Login.senha` opcional (a aplicação nunca grava senhas nessa tabela), habilita RLS e restringe os registros de `Login` e `Company` ao usuário autenticado. As tabelas devem ter os campos `Login(id_login, email, nome)` e `Company(id_company, id_login, nome, cnpj)`, com `Company.id_login` relacionado a `Login.id_login`.
 2. Para exibir os dados das empresas no painel autenticado, execute [`supabase/dashboard-company-access.sql`](./supabase/dashboard-company-access.sql). Ele libera a leitura das colunas necessárias para usuários autenticados; a política RLS existente continua limitando quais empresas cada conta pode ler.
-3. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
-4. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
-5. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
+3. Para atualizar instalações que já executaram o `auth-setup.sql`, execute [`supabase/login-name-update.sql`](./supabase/login-name-update.sql). Ele permite atualizar apenas `Login.nome` do usuário autenticado e mantém a política RLS limitada ao e-mail da sessão. O fluxo Google usa o nome completo do perfil do provedor, incluindo sobrenome quando disponível.
+4. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
+5. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
+6. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
 
    ```dotenv
    VITE_SUPABASE_URL=https://<project-ref>.supabase.co
    VITE_SUPABASE_ANON_KEY=<public-anon-key>
    ```
 
-6. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
+7. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
 
 O botão **Ver demonstração** continua acessível sem conta em `/demo`. **Acessar Painel** abre o login; após autenticar, uma conta sem empresas é encaminhada ao cadastro obrigatório e uma conta com empresas vai para `/app`. A rota `/app` valida a sessão e mostra somente os dados da conta; a demonstração continua isolada em `/demo`. No painel, use o seletor da barra lateral para alternar entre empresas; a opção **Adicionar empresa** abre o cadastro de outra empresa. O login Google cria/valida a sessão pelo Supabase Auth e também segue para o cadastro de empresas quando necessário.
 

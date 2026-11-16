@@ -82,7 +82,10 @@ export function AuthPage({ mode }: Readonly<AuthPageProps>) {
     try {
       const { error } = await getSupabaseClient().auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/empresas` },
+        options: {
+          redirectTo: `${window.location.origin}/empresas`,
+          scopes: "openid email profile",
+        },
       });
       if (error) throw error;
     } catch (error) {

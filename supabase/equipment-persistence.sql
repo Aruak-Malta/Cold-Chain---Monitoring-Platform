@@ -5,7 +5,6 @@
 BEGIN;
 
 ALTER TABLE public."Equipamento"
-  ADD COLUMN IF NOT EXISTS nome TEXT,
   ADD COLUMN IF NOT EXISTS serial TEXT,
   ADD COLUMN IF NOT EXISTS setor TEXT,
   ADD COLUMN IF NOT EXISTS tensao SMALLINT;
@@ -30,21 +29,25 @@ BEGIN
     WHERE attrelid = equipment_table
       AND attname = 'id_company'
       AND NOT attisdropped
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute
+    WHERE attrelid = equipment_table
+      AND attname = 'nome_equipamento'
+      AND NOT attisdropped
   ) THEN
     RAISE EXCEPTION
-      'A tabela public."Equipamento" precisa ter id_equipamento e id_company.';
+      'A tabela public."Equipamento" precisa ter id_equipamento, id_company e nome_equipamento.';
   END IF;
 
   IF EXISTS (
     SELECT 1
     FROM public."Equipamento"
-    WHERE nome IS NULL
-      OR btrim(nome) = ''
-      OR serial IS NULL
-      OR btrim(serial) = ''
+    WHERE nome_equipamento IS NULL
+      OR btrim(nome_equipamento) = ''
   ) THEN
     RAISE EXCEPTION
-      'Preencha nome e serial dos equipamentos existentes antes de habilitar o cadastro pela aplicação.';
+      'Preencha nome_equipamento nos registros existentes antes de habilitar o cadastro pela aplicação.';
   END IF;
 
   IF NOT EXISTS (
@@ -66,9 +69,9 @@ COMMENT ON COLUMN public."Equipamento".tensao IS
 ALTER TABLE public."Equipamento" ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public."Equipamento" FROM PUBLIC, anon, authenticated;
-GRANT SELECT (id_equipamento, id_company, nome, serial, setor, tensao)
-  ON TABLE public."Equipamento" TO authenticated;
-GRANT INSERT (id_company, nome, serial, setor, tensao)
+-- PostgREST requires table-level privileges for the insert/select-returning flow.
+-- The RLS policies below restrict both operations to the authenticated user's companies.
+GRANT SELECT, INSERT
   ON TABLE public."Equipamento" TO authenticated;
 
 DO $$
@@ -146,5 +149,5 @@ SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'Equipamento'
-  AND column_name IN ('id_equipamento', 'id_company', 'nome', 'serial', 'setor', 'tensao')
+  AND column_name IN ('id_equipamento', 'id_company', 'nome_equipamento', 'serial', 'setor', 'tensao')
 ORDER BY ordinal_position;

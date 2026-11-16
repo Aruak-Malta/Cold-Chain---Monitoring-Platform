@@ -7,6 +7,7 @@ type HeaderProps = {
   onSearch: (value: string) => void;
   openMenu: () => void;
   openAddEquipment: () => void;
+  basePath: string;
 };
 
 export function Header({
@@ -14,6 +15,7 @@ export function Header({
   onSearch,
   openMenu,
   openAddEquipment,
+  basePath,
 }: Readonly<HeaderProps>) {
   const navigate = useNavigate();
 
@@ -33,7 +35,7 @@ export function Header({
         <kbd>⌘ K</kbd>
       </div>
       <div className="top-actions">
-        <button className="notification-button" aria-label="Notificações" onClick={() => navigate("/demo/alertas")} type="button">
+        <button className="notification-button" aria-label="Notificações" onClick={() => navigate(`${basePath}/alertas`)} type="button">
           <Icon name="bell" /><span />
         </button>
         <div className="date-block"><small>terça-feira</small><strong>18 jun, 2025</strong></div>

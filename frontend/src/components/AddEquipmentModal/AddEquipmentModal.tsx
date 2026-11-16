@@ -5,21 +5,27 @@ import jsonIcon from "../../assets/icons8-json-48.png";
 import {
   analyzeSessionEquipment,
   apiUrl,
+  getEquipmentStorageKey,
   getSessionId,
   parseSessionEquipmentList,
 } from "../../services/sessionEquipmentService";
-import type { SessionEquipmentRecord } from "../../services/sessionEquipmentService";
+import type {
+  SessionEquipmentRecord,
+  SessionScope,
+} from "../../services/sessionEquipmentService";
 
 type AddEquipmentModalProps = {
   close: () => void;
   notify: (message: string) => void;
   onEquipmentAdded: (equipments: SessionEquipmentRecord[]) => void;
+  scope: SessionScope;
 };
 
 export function AddEquipmentModal({
   close,
   notify,
   onEquipmentAdded,
+  scope,
 }: Readonly<AddEquipmentModalProps>) {
   const [name, setName] = useState("");
   const [serial, setSerial] = useState("");
@@ -57,7 +63,7 @@ export function AddEquipmentModal({
 
       const resposta = await fetch(`${apiUrl}/equipamentos`, {
         method: "POST",
-        headers: { "X-Session-ID": getSessionId() },
+        headers: { "X-Session-ID": getSessionId(scope) },
         body: formData,
       });
 
@@ -71,7 +77,7 @@ export function AddEquipmentModal({
       }
 
       const equipamentos = parseSessionEquipmentList(await resposta.json());
-      sessionStorage.setItem("equipamentos", JSON.stringify(equipamentos));
+      sessionStorage.setItem(getEquipmentStorageKey(scope), JSON.stringify(equipamentos));
       onEquipmentAdded(equipamentos);
 
       notify(
@@ -83,9 +89,9 @@ export function AddEquipmentModal({
 
       if (file) {
         window.setTimeout(() => {
-          void analyzeSessionEquipment(serial.trim())
+          void analyzeSessionEquipment(serial.trim(), scope)
             .then((updatedEquipments) => {
-              sessionStorage.setItem("equipamentos", JSON.stringify(updatedEquipments));
+              sessionStorage.setItem(getEquipmentStorageKey(scope), JSON.stringify(updatedEquipments));
               onEquipmentAdded(updatedEquipments);
               notify(`Análise histórica de ${name} concluída.`);
             })

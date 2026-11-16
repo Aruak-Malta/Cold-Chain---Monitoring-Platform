@@ -1,11 +1,15 @@
 import type { Alert } from "../types/Alert";
-import type { SessionEquipmentRecord } from "./sessionEquipmentService";
+import type { SessionEquipmentRecord, SessionScope } from "./sessionEquipmentService";
 
-export const acknowledgedAlertsKey = "cold-chain-acknowledged-alerts";
+const acknowledgedAlertsKey = "cold-chain-acknowledged-alerts";
 
-export function readAcknowledgedAlertIds(): string[] {
+function getAcknowledgedAlertsKey(scope: SessionScope): string {
+  return scope === "demo" ? acknowledgedAlertsKey : `${acknowledgedAlertsKey}-${scope}`;
+}
+
+export function readAcknowledgedAlertIds(scope: SessionScope = "demo"): string[] {
   try {
-    const storedIds = sessionStorage.getItem(acknowledgedAlertsKey);
+    const storedIds = sessionStorage.getItem(getAcknowledgedAlertsKey(scope));
     if (!storedIds) return [];
     const parsedIds: unknown = JSON.parse(storedIds);
     if (!Array.isArray(parsedIds) || !parsedIds.every((id) => typeof id === "string")) {
@@ -18,9 +22,9 @@ export function readAcknowledgedAlertIds(): string[] {
   }
 }
 
-export function saveAcknowledgedAlertIds(ids: string[]): boolean {
+export function saveAcknowledgedAlertIds(ids: string[], scope: SessionScope = "demo"): boolean {
   try {
-    sessionStorage.setItem(acknowledgedAlertsKey, JSON.stringify(ids));
+    sessionStorage.setItem(getAcknowledgedAlertsKey(scope), JSON.stringify(ids));
     return true;
   } catch (error) {
     console.error("Não foi possível salvar o reconhecimento dos avisos:", error);

@@ -1,6 +1,7 @@
 import {
   fetchSessionReportData,
   type SessionReportEquipmentRecord,
+  type SessionScope,
 } from "./sessionEquipmentService";
 import { getSessionAlerts, readAcknowledgedAlertIds } from "./sessionAlertService";
 
@@ -265,8 +266,11 @@ function getManagementLines(
   return lines;
 }
 
-function getAlertLines(equipments: SessionReportEquipmentRecord[]): string[] {
-  const acknowledgedIds = new Set(readAcknowledgedAlertIds());
+function getAlertLines(
+  equipments: SessionReportEquipmentRecord[],
+  scope: SessionScope,
+): string[] {
+  const acknowledgedIds = new Set(readAcknowledgedAlertIds(scope));
   const alerts = getSessionAlerts(equipments);
   const lines = [
     "Auditoria de alertas",
@@ -398,8 +402,9 @@ export async function exportReport(
   name: string,
   period: string,
   kind: ReportKind,
+  scope: SessionScope = "demo",
 ): Promise<void> {
-  const equipments = await fetchSessionReportData();
+  const equipments = await fetchSessionReportData(scope);
   const filtered = filterReportData(equipments, period);
 
   if (kind === "telemetry") {
@@ -413,7 +418,7 @@ export async function exportReport(
     lines.push(...getManagementLines(equipments, filtered));
   }
   if (kind === "alerts" || kind === "consolidated") {
-    lines.push(...getAlertLines(equipments));
+    lines.push(...getAlertLines(equipments, scope));
   }
   if (kind === "energy" || kind === "consolidated") {
     lines.push(...getEnergyLines(equipments, filtered));

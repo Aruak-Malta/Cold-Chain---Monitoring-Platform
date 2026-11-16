@@ -564,6 +564,35 @@ button {
   font-size: 9px;
 }
 
+.account-companies-heading {
+  margin-top: 20px;
+}
+
+.account-company-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 13px;
+  margin-bottom: 20px;
+}
+
+.account-company-card {
+  min-height: 84px;
+}
+
+.account-company-card>div {
+  min-width: 0;
+}
+
+.account-company-card strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.account-company-card small {
+  font-size: 10px;
+}
+
 .critical-alert {
   display: grid;
   grid-template-columns: auto 1fr auto;

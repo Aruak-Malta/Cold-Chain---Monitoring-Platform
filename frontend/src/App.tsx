@@ -19,7 +19,15 @@ function App() {
         <Route path="/login" element={<AuthPage mode="login" />} />
         <Route path="/cadastro" element={<AuthPage mode="register" />} />
         <Route path="/empresas" element={<CompaniesPage />} />
-        <Route path="/demo" element={<Layout />}>
+        <Route path="/demo" element={<Layout mode="demo" />}>
+          <Route index element={<Overview />} />
+          <Route path="equipamentos" element={<Equipment />} />
+          <Route path="alertas" element={<Alerts />} />
+          <Route path="analises" element={<Analytics />} />
+          <Route path="relatorios" element={<Reports />} />
+          <Route path="configuracoes" element={<Settings />} />
+        </Route>
+        <Route path="/app" element={<Layout mode="account" />}>
           <Route index element={<Overview />} />
           <Route path="equipamentos" element={<Equipment />} />
           <Route path="alertas" element={<Alerts />} />

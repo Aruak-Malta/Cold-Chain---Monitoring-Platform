@@ -1,5 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
+export type AccountCompany = {
+  id_company: number | string;
+  nome: string;
+  cnpj: string;
+};
+
+export type AccountDashboard = {
+  name: string;
+  email: string;
+  companies: AccountCompany[];
+};
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
@@ -46,6 +58,38 @@ export async function accountHasCompany(email: string): Promise<boolean> {
     throw new Error(`Não foi possível consultar as empresas da conta: ${error.message}`);
   }
   return data.length > 0;
+}
+
+export async function fetchAccountDashboard(email: string): Promise<AccountDashboard | null> {
+  const client = getSupabaseClient();
+  const { data: login, error: loginError } = await client
+    .from("Login")
+    .select("id_login, nome")
+    .eq("email", email)
+    .maybeSingle();
+
+  if (loginError) {
+    throw new Error(`Não foi possível carregar o perfil da conta: ${loginError.message}`);
+  }
+  if (!login) {
+    return null;
+  }
+
+  const { data: companies, error: companiesError } = await client
+    .from("Company")
+    .select("id_company, nome, cnpj")
+    .eq("id_login", login.id_login)
+    .order("id_company");
+
+  if (companiesError) {
+    throw new Error(`Não foi possível carregar as empresas da conta: ${companiesError.message}`);
+  }
+
+  return {
+    name: login.nome || email.split("@")[0],
+    email,
+    companies,
+  };
 }
 
 export async function saveCompanies(

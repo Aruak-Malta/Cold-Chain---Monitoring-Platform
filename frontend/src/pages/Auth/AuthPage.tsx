@@ -67,7 +67,7 @@ export function AuthPage({ mode }: Readonly<AuthPageProps>) {
       if (error) throw error;
 
       if (await accountHasCompany(normalizedEmail)) {
-        navigate("/demo", { replace: true });
+        navigate("/app", { replace: true });
       } else {
         navigate("/empresas", { replace: true });
       }

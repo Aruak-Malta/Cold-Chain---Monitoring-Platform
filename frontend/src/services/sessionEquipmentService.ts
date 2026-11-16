@@ -5,6 +5,17 @@ export const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") ||
 const sessionIdKey = "cold-chain-session-id";
 const equipmentStorageKey = "equipamentos";
 
+export type SessionMode = "demo" | "account";
+export type SessionScope = "demo" | `account:${string}`;
+
+export function getEquipmentStorageKey(scope: SessionScope): string {
+  return scope === "demo" ? equipmentStorageKey : `${equipmentStorageKey}-${scope}`;
+}
+
+function getSessionIdStorageKey(scope: SessionScope): string {
+  return scope === "demo" ? sessionIdKey : `${sessionIdKey}-${scope}`;
+}
+
 type TelemetryAnalysisResponse = {
   resumo_analise: {
     temperatura_media: number | null;
@@ -238,20 +249,23 @@ export function parseSessionEquipmentList(value: unknown): SessionEquipmentRecor
   return value.equipamentos;
 }
 
-export function getSessionId(): string {
-  const existingId = sessionStorage.getItem(sessionIdKey);
+export function getSessionId(scope: SessionScope = "demo"): string {
+  const storageKey = getSessionIdStorageKey(scope);
+  const existingId = sessionStorage.getItem(storageKey);
   if (existingId) {
     return existingId;
   }
 
   const newId = crypto.randomUUID();
-  sessionStorage.setItem(sessionIdKey, newId);
+  sessionStorage.setItem(storageKey, newId);
   return newId;
 }
 
-export async function fetchSessionReportData(): Promise<SessionReportEquipmentRecord[]> {
+export async function fetchSessionReportData(
+  scope: SessionScope = "demo",
+): Promise<SessionReportEquipmentRecord[]> {
   const response = await fetch(`${apiUrl}/relatorios/dados`, {
-    headers: { "X-Session-ID": getSessionId() },
+    headers: { "X-Session-ID": getSessionId(scope) },
   });
 
   if (!response.ok) {
@@ -270,9 +284,11 @@ export async function fetchSessionReportData(): Promise<SessionReportEquipmentRe
   return body.equipamentos;
 }
 
-export async function fetchSessionEquipments(): Promise<SessionEquipmentRecord[]> {
+export async function fetchSessionEquipments(
+  scope: SessionScope = "demo",
+): Promise<SessionEquipmentRecord[]> {
   const response = await fetch(`${apiUrl}/equipamentos`, {
-    headers: { "X-Session-ID": getSessionId() },
+    headers: { "X-Session-ID": getSessionId(scope) },
   });
 
   if (!response.ok) {
@@ -280,13 +296,15 @@ export async function fetchSessionEquipments(): Promise<SessionEquipmentRecord[]
   }
 
   const records = parseSessionEquipmentList(await response.json());
-  sessionStorage.setItem(equipmentStorageKey, JSON.stringify(records));
+  sessionStorage.setItem(getEquipmentStorageKey(scope), JSON.stringify(records));
   return records;
 }
 
-export async function fetchSessionDashboardSummary(): Promise<SessionDashboardSummary> {
+export async function fetchSessionDashboardSummary(
+  scope: SessionScope = "demo",
+): Promise<SessionDashboardSummary> {
   const response = await fetch(`${apiUrl}/resumo`, {
-    headers: { "X-Session-ID": getSessionId() },
+    headers: { "X-Session-ID": getSessionId(scope) },
   });
 
   if (!response.ok) {
@@ -324,12 +342,15 @@ export async function fetchSessionDashboardSummary(): Promise<SessionDashboardSu
   };
 }
 
-export async function analyzeSessionEquipment(serial: string): Promise<SessionEquipmentRecord[]> {
+export async function analyzeSessionEquipment(
+  serial: string,
+  scope: SessionScope = "demo",
+): Promise<SessionEquipmentRecord[]> {
   const response = await fetch(`${apiUrl}/analise-avancada`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Session-ID": getSessionId(),
+      "X-Session-ID": getSessionId(scope),
     },
     body: JSON.stringify({ serial }),
   });
@@ -339,7 +360,7 @@ export async function analyzeSessionEquipment(serial: string): Promise<SessionEq
   }
 
   const records = parseSessionEquipmentList(await response.json());
-  sessionStorage.setItem(equipmentStorageKey, JSON.stringify(records));
+  sessionStorage.setItem(getEquipmentStorageKey(scope), JSON.stringify(records));
   return records;
 }
 

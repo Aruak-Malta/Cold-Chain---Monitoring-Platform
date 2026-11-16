@@ -21,13 +21,13 @@ const reportTemplates: {
 ];
 
 export function Reports() {
-  const { notify } = useOutletContext<AppOutletContext>();
+  const { sessionScope, notify } = useOutletContext<AppOutletContext>();
   const [currentMonth, previousMonth] = getReportMonthOptions();
   const [period, setPeriod] = useState(currentMonth);
 
   async function generateReport(name: string, kind: ReportKind) {
     try {
-      await exportReport(name, period, kind);
+      await exportReport(name, period, kind, sessionScope);
       notify(`${name} exportado em ${kind === "telemetry" ? "CSV" : "PDF"}.`);
     } catch (error) {
       console.error(`Não foi possível gerar ${name}:`, error);

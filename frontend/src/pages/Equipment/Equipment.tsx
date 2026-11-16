@@ -11,6 +11,7 @@ import type { AppOutletContext } from "../../types/AppOutletContext";
 export function Equipment() {
   const {
     search,
+    mode,
     sessionEquipments,
     equipmentLoadError,
     openEquipment,
@@ -19,7 +20,11 @@ export function Equipment() {
   const [status, setStatus] = useState("Todos");
   const [sector, setSector] = useState("Todos os setores");
   const uploadedEquipment = sessionEquipments.map((item, index) => toEquipment(item, index));
-  const displayedEquipment = uploadedEquipment.length ? uploadedEquipment : equipment.slice(0, 1);
+  const displayedEquipment = uploadedEquipment.length
+    ? uploadedEquipment
+    : mode === "demo"
+      ? equipment.slice(0, 1)
+      : [];
 
   const filteredEquipment = displayedEquipment.filter((item) => {
     const matchesSearch = `${item.name} ${item.place}`.toLowerCase().includes(search.toLowerCase());

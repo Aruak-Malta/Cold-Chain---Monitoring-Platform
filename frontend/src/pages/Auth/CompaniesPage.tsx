@@ -61,7 +61,7 @@ export function CompaniesPage() {
         }
         if (!active) return;
         if (await accountHasCompany(data.user.email)) {
-          if (active) navigate("/demo", { replace: true });
+          if (active) navigate("/app", { replace: true });
           return;
         }
         if (!active) return;
@@ -119,7 +119,7 @@ export function CompaniesPage() {
     setIsLoading(true);
     try {
       await saveCompanies(email, name.trim(), normalized);
-      navigate("/demo", { replace: true });
+      navigate("/app", { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Não foi possível salvar suas empresas.");
     } finally {

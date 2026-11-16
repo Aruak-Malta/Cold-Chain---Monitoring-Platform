@@ -31,6 +31,9 @@ export function Overview() {
   const navigate = useNavigate();
   const {
     search,
+    mode,
+    basePath,
+    accountDashboard,
     sessionEquipments,
     equipmentLoadError,
     dashboardSummary,
@@ -43,7 +46,11 @@ export function Overview() {
   } = useOutletContext<AppOutletContext>();
   const [filter, setFilter] = useState("Todos");
   const uploadedEquipment = sessionEquipments.map((item, index) => toEquipment(item, index));
-  const displayedEquipment = uploadedEquipment.length ? uploadedEquipment : equipment.slice(0, 1);
+  const displayedEquipment = uploadedEquipment.length
+    ? uploadedEquipment
+    : mode === "demo"
+      ? equipment.slice(0, 1)
+      : [];
   const pendingAlerts = getSessionAlerts(sessionEquipments)
     .filter((alert) => !acknowledgedAlertIds.includes(alert.id))
     .sort((left, right) => Number(right.level === "critical") - Number(left.level === "critical"));
@@ -63,13 +70,47 @@ export function Overview() {
     value === null || value === undefined
       ? "—"
       : `${value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} °C`;
+  const formatCnpj = (value: string) => {
+    const digits = value.replace(/\D/g, "");
+    return digits.length === 14
+      ? `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
+      : value;
+  };
+  const firstName = accountDashboard?.name.trim().split(/\s+/)[0];
 
   return (
     <>
       <section className="welcome-row">
-        <div><p>VISÃO GERAL</p><h1>Bom dia.</h1><span>Acompanhe os dados analisados dos seus equipamentos.</span></div>
+        <div>
+          <p>VISÃO GERAL</p>
+          <h1>{mode === "account" ? `Olá, ${firstName || "bem-vindo"}.` : "Bom dia."}</h1>
+          <span>
+            {mode === "account"
+              ? "Confira os dados das empresas vinculadas à sua conta."
+              : "Acompanhe os dados analisados dos seus equipamentos."}
+          </span>
+        </div>
         <Button variant="primary" onClick={openAddEquipment}><Icon name="plus" />Novo equipamento</Button>
       </section>
+      {mode === "account" && accountDashboard && (
+        <>
+          <section className="section-header account-companies-heading">
+            <div><h2>Suas empresas</h2><span>Dados cadastrados na sua conta</span></div>
+          </section>
+          <section className="account-company-grid">
+            {accountDashboard.companies.map((company) => (
+              <article className="summary-card account-company-card" key={company.id_company}>
+                <span className="summary-icon blue"><Icon name="grid" /></span>
+                <div>
+                  <span>Empresa</span>
+                  <strong>{company.nome}</strong>
+                  <small>CNPJ {formatCnpj(company.cnpj)}</small>
+                </div>
+              </article>
+            ))}
+          </section>
+        </>
+      )}
       <section className="summary-grid">
         <SummaryCard
           icon="snow"
@@ -122,7 +163,7 @@ export function Overview() {
         />
       )}
       <section className="section-header">
-        <div><h2>Equipamentos</h2><span>{uploadedEquipment.length ? "Dispositivos enviados nesta sessão" : "Exemplo exibido até você enviar seu primeiro dispositivo"}</span></div>
+        <div><h2>Equipamentos</h2><span>{uploadedEquipment.length ? "Dispositivos enviados nesta sessão" : mode === "demo" ? "Exemplo exibido até você enviar seu primeiro dispositivo" : "Nenhum dispositivo adicionado nesta sessão"}</span></div>
         <div className="equipment-tools">
           <div className="filter-tabs">
             {["Todos", "Em alerta"].map((item) => (
@@ -131,7 +172,7 @@ export function Overview() {
               </button>
             ))}
           </div>
-          <Button onClick={() => navigate("/demo/equipamentos")}>Ver todos <Icon name="arrow" size="sm" /></Button>
+          <Button onClick={() => navigate(`${basePath}/equipamentos`)}>Ver todos <Icon name="arrow" size="sm" /></Button>
         </div>
       </section>
       <section className="equipment-grid">

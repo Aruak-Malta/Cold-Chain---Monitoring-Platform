@@ -16,6 +16,10 @@ import {
   readAcknowledgedAlertIds,
   saveAcknowledgedAlertIds,
 } from "../../services/sessionAlertService";
+import {
+  readSelectedCompanyId,
+  saveSelectedCompanyId,
+} from "../../services/companySelectionService";
 import { fetchAccountDashboard, getSupabaseClient } from "../../services/supabase";
 import type {
   SessionDashboardSummary,
@@ -67,6 +71,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
     () => readAcknowledgedAlertIds(mode === "demo" ? "demo" : "account:pending"),
   );
   const [accountDashboard, setAccountDashboard] = useState<AccountDashboard | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [accountLoading, setAccountLoading] = useState(mode === "account");
   const [accountLoadError, setAccountLoadError] = useState("");
   const equipmentChangedDuringLoad = useRef(false);
@@ -127,9 +132,19 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
           if (!isMounted) return;
 
           const accountScope = `account:${data.user.id}` as const;
+          const storedCompanyId = readSelectedCompanyId(dashboard.email);
+          const selectedCompany = dashboard.companies.find(
+            (company) => String(company.id_company) === storedCompanyId,
+          ) ?? dashboard.companies[0];
+          const nextCompanyId = String(selectedCompany.id_company);
+
           setSessionScope(accountScope);
           setSessionEquipments(readCachedEquipments(accountScope));
           setAcknowledgedAlertIds(readAcknowledgedAlertIds(accountScope));
+          setSelectedCompanyId(nextCompanyId);
+          if (storedCompanyId !== nextCompanyId) {
+            saveSelectedCompanyId(dashboard.email, nextCompanyId);
+          }
           setAccountDashboard(dashboard);
           setAccountLoadError("");
           loadSessionData(accountScope);
@@ -162,6 +177,14 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
     return saveAcknowledgedAlertIds(nextIds, sessionScope);
   }
 
+  function selectCompany(companyId: string | number) {
+    const companyIdString = String(companyId);
+    setSelectedCompanyId(companyIdString);
+    if (accountDashboard && !saveSelectedCompanyId(accountDashboard.email, companyIdString)) {
+      notify("Empresa selecionada, mas a preferência não pôde ser salva neste navegador.");
+    }
+  }
+
   async function handleEquipmentAdded(equipments: SessionEquipmentRecord[]) {
     equipmentChangedDuringLoad.current = true;
     setSessionEquipments(equipments);
@@ -183,6 +206,10 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
     return <main className="auth-loading" role="alert">{accountLoadError}</main>;
   }
 
+  const selectedCompany = accountDashboard?.companies.find(
+    (company) => String(company.id_company) === selectedCompanyId,
+  ) ?? accountDashboard?.companies[0] ?? null;
+
   return (
     <div className="app-shell">
       <Sidebar
@@ -191,6 +218,8 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
         pendingAlertCount={pendingAlertCount}
         basePath={basePath}
         accountDashboard={accountDashboard}
+        selectedCompany={selectedCompany}
+        onSelectCompany={selectCompany}
       />
       <main className="main-content">
         <Header
@@ -208,6 +237,8 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
               sessionScope,
               basePath,
               accountDashboard,
+              selectedCompany,
+              selectCompany,
               sessionEquipments,
               equipmentLoadError,
               dashboardSummary,

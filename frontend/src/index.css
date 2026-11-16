@@ -108,6 +108,108 @@ button {
   background: #12333d;
 }
 
+.company-selector {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.company-selector>summary {
+  width: 100%;
+  margin-bottom: 0;
+  cursor: pointer;
+  list-style: none;
+}
+
+.company-selector>summary::-webkit-details-marker {
+  display: none;
+}
+
+.company-selector[open]>summary {
+  border-color: #347079;
+}
+
+.company-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  z-index: 40;
+  max-height: min(60vh, 360px);
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #22434b;
+  border-radius: 11px;
+  background: #102f39;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28);
+}
+
+.company-option,
+.company-add-action {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d9e6e9;
+  text-align: left;
+}
+
+.company-option:hover,
+.company-option-selected,
+.company-add-action:hover {
+  background: #1b424c;
+}
+
+.company-option>span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+}
+
+.company-option strong,
+.company-option small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-option strong {
+  color: #eef7f8;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.company-option small {
+  margin-top: 3px;
+  color: #8eabb2;
+  font-size: 9px;
+}
+
+.company-option-avatar {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 7px;
+  background: #244b55;
+  color: #a7dcd5;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.company-add-action {
+  margin-top: 5px;
+  border-top: 1px solid #24434b;
+  border-radius: 0 0 8px 8px;
+  color: #82d7ca;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .store-switcher>span:nth-child(2) {
   min-width: 0;
   flex: 1;
@@ -570,13 +672,27 @@ button {
 
 .account-company-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  grid-template-columns: 1fr;
   gap: 13px;
   margin-bottom: 20px;
 }
 
 .account-company-card {
   min-height: 84px;
+  width: 100%;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-company-card:hover,
+.account-company-card-selected {
+  border-color: #6bb8ad;
+}
+
+.account-company-card:focus-visible {
+  outline: 2px solid #248f82;
+  outline-offset: 2px;
 }
 
 .account-company-card>div {

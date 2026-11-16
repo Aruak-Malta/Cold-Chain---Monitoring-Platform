@@ -95,7 +95,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 
 6. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
 
-O botão **Ver demonstração** continua acessível sem conta em `/demo`. **Acessar Painel** abre o login; após autenticar, uma conta sem empresas é encaminhada ao cadastro obrigatório e uma conta com empresas vai para `/app`. A rota `/app` valida a sessão e mostra somente os dados da conta; a demonstração continua isolada em `/demo`. O login Google cria/valida a sessão pelo Supabase Auth e também segue para o cadastro de empresas quando necessário.
+O botão **Ver demonstração** continua acessível sem conta em `/demo`. **Acessar Painel** abre o login; após autenticar, uma conta sem empresas é encaminhada ao cadastro obrigatório e uma conta com empresas vai para `/app`. A rota `/app` valida a sessão e mostra somente os dados da conta; a demonstração continua isolada em `/demo`. No painel, use o seletor da barra lateral para alternar entre empresas; a opção **Adicionar empresa** abre o cadastro de outra empresa. O login Google cria/valida a sessão pelo Supabase Auth e também segue para o cadastro de empresas quando necessário.
 
 É necessário manter **dois terminais abertos**: um para o backend e outro para o frontend.
 

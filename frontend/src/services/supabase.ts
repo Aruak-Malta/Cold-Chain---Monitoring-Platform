@@ -96,7 +96,7 @@ export async function saveCompanies(
   email: string,
   name: string,
   companies: Array<{ nome: string; cnpj: string }>,
-): Promise<void> {
+): Promise<string[]> {
   const client = getSupabaseClient();
   let loginId = await findLoginId(email);
 
@@ -113,15 +113,19 @@ export async function saveCompanies(
     loginId = data.id_login;
   }
 
-  const { error } = await client.from("Company").insert(
-    companies.map((company) => ({
-      id_login: loginId,
-      nome: company.nome,
-      cnpj: company.cnpj,
-    })),
-  );
+  const { data, error } = await client
+    .from("Company")
+    .insert(
+      companies.map((company) => ({
+        id_login: loginId,
+        nome: company.nome,
+        cnpj: company.cnpj,
+      })),
+    )
+    .select("id_company");
 
   if (error) {
     throw new Error(`Não foi possível salvar as empresas: ${error.message}`);
   }
+  return data.map((company) => String(company.id_company));
 }

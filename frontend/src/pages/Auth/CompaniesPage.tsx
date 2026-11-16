@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowRight, Building2, LogOut, Plus, Trash2 } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import coldGhostMark from "../../assets/cold-ghost-mark.jpeg";
 import {
   accountHasCompany,
   getSupabaseClient,
   saveCompanies,
 } from "../../services/supabase";
+import { saveSelectedCompanyId } from "../../services/companySelectionService";
 import "./Auth.css";
 
 type CompanyDraft = {
@@ -41,6 +42,8 @@ function isValidCnpj(value: string) {
 export function CompaniesPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const isAddingCompany = searchParams.get("adicionar") === "1";
   const keyRef = useRef(1);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -60,7 +63,7 @@ export function CompaniesPage() {
           return;
         }
         if (!active) return;
-        if (await accountHasCompany(data.user.email)) {
+        if (await accountHasCompany(data.user.email) && !isAddingCompany) {
           if (active) navigate("/app", { replace: true });
           return;
         }
@@ -82,7 +85,7 @@ export function CompaniesPage() {
       }
     })();
     return () => { active = false; };
-  }, [location.state, navigate]);
+  }, [isAddingCompany, location.state, navigate]);
 
   function updateCompany(key: number, field: "name" | "cnpj", value: string) {
     setCompanies((current) =>
@@ -118,7 +121,10 @@ export function CompaniesPage() {
 
     setIsLoading(true);
     try {
-      await saveCompanies(email, name.trim(), normalized);
+      const newCompanyIds = await saveCompanies(email, name.trim(), normalized);
+      if (newCompanyIds[0]) {
+        saveSelectedCompanyId(email, newCompanyIds[0]);
+      }
       navigate("/app", { replace: true });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Não foi possível salvar suas empresas.");
@@ -156,11 +162,15 @@ export function CompaniesPage() {
         </button>
       </header>
       <section className="company-card">
-        <div className="company-step"><span>ETAPA 1 DE 1</span><strong>Perfil da operação</strong></div>
+        <div className="company-step"><span>ETAPA 1 DE 1</span><strong>{isAddingCompany ? "Nova empresa" : "Perfil da operação"}</strong></div>
         <div className="company-heading-icon"><Building2 aria-hidden="true" /></div>
         <span className="auth-kicker">SÓ MAIS UM PASSO</span>
-        <h1>Cadastre suas empresas</h1>
-        <p>Adicione ao menos uma empresa para configurar seu espaço de monitoramento.</p>
+        <h1>{isAddingCompany ? "Adicione outra empresa" : "Cadastre suas empresas"}</h1>
+        <p>
+          {isAddingCompany
+            ? "Cadastre uma empresa para adicioná-la à sua conta."
+            : "Adicione ao menos uma empresa para configurar seu espaço de monitoramento."}
+        </p>
         <form className="company-form" onSubmit={handleSubmit}>
           {companies.map((company, index) => (
             <fieldset className="company-fields" key={company.key}>
@@ -202,7 +212,7 @@ export function CompaniesPage() {
           </button>
           {errorMessage && <p className="auth-message auth-error" role="alert">{errorMessage}</p>}
           <button className="auth-submit" disabled={isLoading || !email} type="submit">
-            {isLoading ? "Salvando..." : "Salvar e continuar"}
+            {isLoading ? "Salvando..." : isAddingCompany ? "Adicionar empresa" : "Salvar e continuar"}
             {!isLoading && <ArrowRight aria-hidden="true" />}
           </button>
         </form>

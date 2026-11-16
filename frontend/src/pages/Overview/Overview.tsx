@@ -34,6 +34,8 @@ export function Overview() {
     mode,
     basePath,
     accountDashboard,
+    selectedCompany,
+    selectCompany,
     sessionEquipments,
     equipmentLoadError,
     dashboardSummary,
@@ -99,14 +101,20 @@ export function Overview() {
           </section>
           <section className="account-company-grid">
             {accountDashboard.companies.map((company) => (
-              <article className="summary-card account-company-card" key={company.id_company}>
+              <button
+                aria-pressed={String(company.id_company) === String(selectedCompany?.id_company)}
+                className={`summary-card account-company-card${String(company.id_company) === String(selectedCompany?.id_company) ? " account-company-card-selected" : ""}`}
+                key={company.id_company}
+                onClick={() => selectCompany(company.id_company)}
+                type="button"
+              >
                 <span className="summary-icon blue"><Icon name="grid" /></span>
                 <div>
                   <span>Empresa</span>
                   <strong>{company.nome}</strong>
                   <small>CNPJ {formatCnpj(company.cnpj)}</small>
                 </div>
-              </article>
+              </button>
             ))}
           </section>
         </>

@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowRight, Eye, EyeOff, LockKeyhole, Mail, UserRound } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import coldGhostMark from "../../assets/cold-ghost-mark.jpeg";
-import { accountHasCompany, getSupabaseClient } from "../../services/supabase";
+import { getSupabaseClient } from "../../services/supabase";
 import "./Auth.css";
 
 type AuthPageProps = {
@@ -66,11 +66,7 @@ export function AuthPage({ mode }: Readonly<AuthPageProps>) {
       });
       if (error) throw error;
 
-      if (await accountHasCompany(normalizedEmail)) {
-        navigate("/app", { replace: true });
-      } else {
-        navigate("/empresas", { replace: true });
-      }
+      navigate("/app", { replace: true });
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Não foi possível concluir a autenticação.",

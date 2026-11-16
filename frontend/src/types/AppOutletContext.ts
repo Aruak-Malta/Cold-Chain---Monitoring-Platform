@@ -5,7 +5,7 @@ import type {
   SessionScope,
   SessionEquipmentRecord,
 } from "../services/sessionEquipmentService";
-import type { AccountDashboard } from "../services/supabase";
+import type { AccountCompany, AccountDashboard } from "../services/supabase";
 
 export type AppOutletContext = {
   search: string;
@@ -13,6 +13,8 @@ export type AppOutletContext = {
   sessionScope: SessionScope;
   basePath: string;
   accountDashboard: AccountDashboard | null;
+  selectedCompany: AccountCompany | null;
+  selectCompany: (companyId: string | number) => void;
   sessionEquipments: SessionEquipmentRecord[];
   equipmentLoadError: string;
   dashboardSummary: SessionDashboardSummary | null;

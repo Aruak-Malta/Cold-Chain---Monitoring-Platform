@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** autenticação, perfil, empresas e cadastros de equipamentos da conta são gerenciados pelo Supabase. Equipamentos ficam vinculados à empresa selecionada, incluindo nome, número de série, setor e tensão; JSONs de telemetria e análises permanecem temporários na sessão. A demonstração continua usando cadastros por sessão. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão; o painel lateral apresenta os dados disponíveis e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais.
+> **Estado do projeto:** autenticação, perfil, empresas e cadastros de equipamentos da conta são gerenciados pelo Supabase. Equipamentos ficam vinculados à empresa selecionada, incluindo nome, número de série/MAC Address, setor e tensão; JSONs de telemetria e análises permanecem temporários na sessão. A demonstração continua usando cadastros por sessão. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão; o painel lateral apresenta os dados disponíveis e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais.
 
 ## Índice
 
@@ -23,7 +23,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 ## Funcionalidades atuais
 
 - Interface web com páginas de visão geral, equipamentos, alertas, análises, relatórios e configurações.
-- Formulário para cadastrar equipamento por empresa com nome, número de série, setor e tensão de operação.
+- Formulário para cadastrar equipamento por empresa com nome, número de série/MAC Address, setor e tensão de operação.
 - Upload opcional de JSON de telemetria durante o cadastro.
 - Persistência dos dados cadastrais do equipamento no Supabase, vinculados à empresa selecionada. O JSON e os resultados das análises continuam temporários na sessão.
 - Exibição dos equipamentos cadastrados nas telas de visão geral e equipamentos pelo mesmo modelo visual dos cartões existentes, com dados disponíveis do JSON e sem inventar métricas ausentes.
@@ -31,7 +31,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos, incluindo uma curva de temperatura suavizada de forma robusta no backend.
 - Tela de análises alimentada pelos dados cadastrados na sessão, com indicadores agregados calculados pelo backend, comparação horizontal de Health Score/duty cycle/risco térmico e investigação individual com laudos e séries reais.
 - Página de avisos baseada em diagnósticos calculados pelo backend sobre a telemetria completa: desvios térmicos persistentes, corrente alta sustentada, refrigeração possivelmente ineficiente, duty cycle e qualidade/atualidade dos dados. Os reconhecimentos ficam no `sessionStorage` da aba e o contador de navegação acompanha avisos pendentes.
-- Cadastro de vários equipamentos na empresa selecionada; não há verificação de duplicidade do número de série no Supabase.
+- Cadastro de vários equipamentos na empresa selecionada; não há validação de formato nem verificação de duplicidade do número de série/MAC Address no Supabase.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
 
@@ -86,7 +86,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 1. No projeto Supabase, execute [`supabase/auth-setup.sql`](./supabase/auth-setup.sql) no SQL Editor. O script mantém o Supabase Auth como fonte das credenciais, torna `Login.senha` opcional (a aplicação nunca grava senhas nessa tabela), habilita RLS e restringe os registros de `Login` e `Company` ao usuário autenticado. As tabelas devem ter os campos `Login(id_login, email, nome)` e `Company(id_company, id_login, nome, cnpj)`, com `Company.id_login` relacionado a `Login.id_login`.
 2. Para exibir os dados das empresas no painel autenticado, execute [`supabase/dashboard-company-access.sql`](./supabase/dashboard-company-access.sql). Ele libera a leitura das colunas necessárias para usuários autenticados; a política RLS existente continua limitando quais empresas cada conta pode ler.
 3. Para atualizar instalações que já executaram o `auth-setup.sql`, execute [`supabase/login-name-update.sql`](./supabase/login-name-update.sql). Ele permite atualizar apenas `Login.nome` do usuário autenticado e mantém a política RLS limitada ao e-mail da sessão. O fluxo Google usa o nome completo do perfil do provedor, incluindo sobrenome quando disponível.
-4. Execute [`supabase/equipment-persistence.sql`](./supabase/equipment-persistence.sql) para preparar `Equipamento` para os campos do formulário, habilitar RLS e permitir que usuários autenticados leiam e cadastrem equipamentos somente nas próprias empresas. O nome é gravado na coluna existente `nome_equipamento`; a migração adiciona setor, número de série e tensão quando necessário. O acesso de tabela é limitado por políticas RLS à empresa do usuário autenticado. Equipamentos antigos sem tensão permanecem com `NULL`; as tensões aceitas são 127 V e 220 V. Não é criada uma regra de unicidade para o número de série.
+4. Execute [`supabase/equipment-persistence.sql`](./supabase/equipment-persistence.sql) para preparar `Equipamento` para os campos do formulário, habilitar RLS e permitir que usuários autenticados leiam e cadastrem equipamentos somente nas próprias empresas. O nome é gravado na coluna existente `nome_equipamento` e o valor do campo de série/MAC é gravado em `mac_address`; a migração adiciona setor e tensão quando necessário. O acesso de tabela é limitado por políticas RLS à empresa do usuário autenticado. Equipamentos antigos sem tensão permanecem com `NULL`; as tensões aceitas são 127 V e 220 V. Não há validação de formato ou unicidade do MAC Address.
 5. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
 6. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
 7. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
@@ -412,7 +412,7 @@ O resultado `analise_avancada` contém `termica`, `eletrica`, `qualidade`, `avis
 - O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON e exibindo os resultados da análise avançada. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
 - `sessionStorage` pertence à aba do navegador e sobrevive a recarregamentos da página, mas pode ser limpo ao encerrar a sessão da aba.
 - Reiniciar o backend apaga JSONs e análises mantidos em memória. Os equipamentos da conta continuam salvos no Supabase; após reiniciar, a telemetria precisa ser enviada novamente.
-- O mesmo número de série pode ser cadastrado mais de uma vez; não há verificação de MAC/serial no Supabase.
+- O mesmo valor de série/MAC Address pode ser cadastrado mais de uma vez; não há validação de formato ou unicidade no Supabase.
 
 ## Solução de problemas
 

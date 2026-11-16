@@ -56,7 +56,7 @@ function parseAccountEquipmentRecord(value: unknown): AccountEquipmentRecord {
     (typeof value.id_equipamento !== "number" && typeof value.id_equipamento !== "string") ||
     (typeof value.id_company !== "number" && typeof value.id_company !== "string") ||
     typeof value.nome_equipamento !== "string" ||
-    typeof value.serial !== "string" ||
+    typeof value.mac_address !== "string" ||
     (value.setor !== null && typeof value.setor !== "string") ||
     (value.tensao !== null && value.tensao !== 127 && value.tensao !== 220)
   ) {
@@ -67,7 +67,7 @@ function parseAccountEquipmentRecord(value: unknown): AccountEquipmentRecord {
     id_equipamento: value.id_equipamento,
     id_company: value.id_company,
     nome: value.nome_equipamento,
-    serial: value.serial,
+    serial: value.mac_address,
     setor: value.setor,
     tensao: value.tensao,
   };
@@ -141,7 +141,7 @@ export async function fetchCompanyEquipments(
 ): Promise<AccountEquipmentRecord[]> {
   const { data, error } = await getSupabaseClient()
     .from("Equipamento")
-    .select("id_equipamento, id_company, nome_equipamento, serial, setor, tensao")
+    .select("id_equipamento, id_company, nome_equipamento, mac_address, setor, tensao")
     .eq("id_company", companyId)
     .order("id_equipamento");
 
@@ -164,11 +164,11 @@ export async function saveCompanyEquipment(
     .insert({
       id_company: equipment.id_company,
       nome_equipamento: equipment.nome,
-      serial: equipment.serial,
+      mac_address: equipment.serial,
       setor: equipment.setor,
       tensao: equipment.tensao,
     })
-    .select("id_equipamento, id_company, nome_equipamento, serial, setor, tensao")
+    .select("id_equipamento, id_company, nome_equipamento, mac_address, setor, tensao")
     .single();
 
   if (error) {

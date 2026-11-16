@@ -5,7 +5,7 @@
 BEGIN;
 
 ALTER TABLE public."Equipamento"
-  ADD COLUMN IF NOT EXISTS serial TEXT,
+  ADD COLUMN IF NOT EXISTS mac_address TEXT,
   ADD COLUMN IF NOT EXISTS setor TEXT,
   ADD COLUMN IF NOT EXISTS tensao SMALLINT;
 
@@ -35,9 +35,15 @@ BEGIN
     WHERE attrelid = equipment_table
       AND attname = 'nome_equipamento'
       AND NOT attisdropped
+  ) OR NOT EXISTS (
+    SELECT 1
+    FROM pg_attribute
+    WHERE attrelid = equipment_table
+      AND attname = 'mac_address'
+      AND NOT attisdropped
   ) THEN
     RAISE EXCEPTION
-      'A tabela public."Equipamento" precisa ter id_equipamento, id_company e nome_equipamento.';
+      'A tabela public."Equipamento" precisa ter id_equipamento, id_company, nome_equipamento e mac_address.';
   END IF;
 
   IF EXISTS (
@@ -149,5 +155,5 @@ SELECT column_name, data_type, is_nullable
 FROM information_schema.columns
 WHERE table_schema = 'public'
   AND table_name = 'Equipamento'
-  AND column_name IN ('id_equipamento', 'id_company', 'nome_equipamento', 'serial', 'setor', 'tensao')
+  AND column_name IN ('id_equipamento', 'id_company', 'nome_equipamento', 'mac_address', 'setor', 'tensao')
 ORDER BY ordinal_position;

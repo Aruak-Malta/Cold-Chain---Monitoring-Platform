@@ -49,6 +49,7 @@ export type SessionEquipmentRecord = {
   nome: string;
   serial: string;
   setor?: string;
+  tensao?: 127 | 220;
   telemetria: TelemetryAnalysisResponse | null;
   analise_avancada?: AdvancedAnalysis | null;
 };
@@ -112,6 +113,7 @@ function isSessionEquipmentRecord(
     typeof value.nome === "string" &&
     typeof value.serial === "string" &&
     (value.setor === undefined || typeof value.setor === "string") &&
+    (value.tensao === undefined || value.tensao === 127 || value.tensao === 220) &&
     (value.telemetria === null || isTelemetryAnalysis(value.telemetria)) &&
     (value.analise_avancada === undefined ||
       value.analise_avancada === null ||
@@ -394,6 +396,7 @@ export function toEquipment(record: SessionEquipmentRecord, index: number): Equi
     trend: record.analise_avancada?.termica?.falha_preditiva_detectada ? "rising" : "stable",
     points: "",
     serial: record.serial,
+    voltage: record.tensao ?? null,
     analysis: record.analise_avancada ?? null,
     temperatureLabel: telemetry ? "Temperatura média" : "Temperatura agora",
     humidityLabel: telemetry ? "Umidade média" : "Umidade",

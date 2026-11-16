@@ -196,7 +196,10 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
           <div>
             <StatusPill status={equipment.status} />
             <h2>{equipment.name}</h2>
-            <p>{equipment.place}</p>
+            <p>
+              {equipment.place}
+              {equipment.voltage ? ` · ${equipment.voltage} V` : ""}
+            </p>
           </div>
           <Button variant="ghost" className="icon-button" label="Fechar" onClick={onClose}>
             <Icon name="close" />

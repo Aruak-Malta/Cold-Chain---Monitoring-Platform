@@ -20,12 +20,16 @@ import {
   readSelectedCompanyId,
   saveSelectedCompanyId,
 } from "../../services/companySelectionService";
-import { fetchAccountDashboard, getSupabaseClient } from "../../services/supabase";
+import {
+  fetchAccountDashboard,
+  fetchCompanyEquipments,
+  getSupabaseClient,
+} from "../../services/supabase";
 import type {
   SessionDashboardSummary,
   SessionEquipmentRecord,
 } from "../../services/sessionEquipmentService";
-import type { AccountDashboard } from "../../services/supabase";
+import type { AccountDashboard, AccountEquipmentRecord } from "../../services/supabase";
 import type { Equipment } from "../../types/Equipment";
 import { AddEquipmentModal } from "../AddEquipmentModal/AddEquipmentModal";
 import { DetailDrawer } from "../DetailDrawer/DetailDrawer";
@@ -46,6 +50,27 @@ function readCachedEquipments(scope: SessionScope): SessionEquipmentRecord[] {
     console.error("Não foi possível ler os equipamentos salvos nesta aba:", error);
     return [];
   }
+}
+
+function mergeAccountEquipments(
+  accountEquipments: AccountEquipmentRecord[],
+  sessionEquipments: SessionEquipmentRecord[],
+): SessionEquipmentRecord[] {
+  const sessionBySerial = new Map(
+    sessionEquipments.map((equipment) => [equipment.serial.trim().toLowerCase(), equipment]),
+  );
+
+  return accountEquipments.map((equipment) => {
+    const sessionEquipment = sessionBySerial.get(equipment.serial.trim().toLowerCase());
+    return {
+      nome: equipment.nome,
+      serial: equipment.serial,
+      setor: equipment.setor ?? undefined,
+      tensao: equipment.tensao ?? undefined,
+      telemetria: sessionEquipment?.telemetria ?? null,
+      analise_avancada: sessionEquipment?.analise_avancada ?? null,
+    };
+  });
 }
 
 type LayoutProps = {
@@ -74,44 +99,65 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [accountLoading, setAccountLoading] = useState(mode === "account");
   const [accountLoadError, setAccountLoadError] = useState("");
-  const equipmentChangedDuringLoad = useRef(false);
+  const accountUserId = useRef<string | null>(null);
+  const equipmentDataRequestId = useRef(0);
   const pendingAlertCount = equipmentLoadError
     ? 0
     : getSessionAlerts(sessionEquipments).filter((alert) => !acknowledgedAlertIds.includes(alert.id)).length;
 
+  async function loadScopeData(scope: SessionScope, companyId?: number | string) {
+    const requestId = ++equipmentDataRequestId.current;
+    const accountEquipmentRequest = mode === "account" && companyId !== undefined
+      ? fetchCompanyEquipments(companyId)
+      : Promise.resolve(null);
+    const [sessionResult, accountResult, summaryResult] = await Promise.allSettled([
+      fetchSessionEquipments(scope),
+      accountEquipmentRequest,
+      fetchSessionDashboardSummary(scope),
+    ]);
+
+    if (requestId !== equipmentDataRequestId.current) {
+      return;
+    }
+
+    const sessionRecords = sessionResult.status === "fulfilled" ? sessionResult.value : [];
+    const accountRecords = accountResult.status === "fulfilled" ? accountResult.value : null;
+    setSessionEquipments(
+      accountRecords ? mergeAccountEquipments(accountRecords, sessionRecords) : sessionRecords,
+    );
+
+    const loadErrors: string[] = [];
+    if (sessionResult.status === "rejected") {
+      console.error("Erro ao carregar telemetria da sessão:", sessionResult.reason);
+      loadErrors.push("Não foi possível carregar os dados de telemetria desta sessão.");
+    }
+    if (accountResult.status === "rejected") {
+      console.error("Erro ao carregar equipamentos da empresa:", accountResult.reason);
+      loadErrors.push(
+        accountResult.reason instanceof Error
+          ? accountResult.reason.message
+          : "Não foi possível carregar os equipamentos da empresa.",
+      );
+    }
+    setEquipmentLoadError(loadErrors.join(" "));
+
+    if (summaryResult.status === "fulfilled") {
+      setDashboardSummary({
+        ...summaryResult.value,
+        total_equipamentos: accountRecords?.length ?? summaryResult.value.total_equipamentos,
+      });
+      setDashboardSummaryError("");
+    } else {
+      console.error("Erro ao carregar resumo da sessão:", summaryResult.reason);
+      setDashboardSummaryError("Não foi possível carregar as métricas da sessão.");
+    }
+  }
+
   useEffect(() => {
     let isMounted = true;
-    const loadSessionData = (scope: SessionScope) => {
-      fetchSessionEquipments(scope)
-        .then((equipments) => {
-          if (isMounted && !equipmentChangedDuringLoad.current) {
-            setSessionEquipments(equipments);
-            setEquipmentLoadError("");
-          }
-        })
-        .catch((error: unknown) => {
-          console.error("Erro ao carregar equipamentos da sessão:", error);
-          if (isMounted && !equipmentChangedDuringLoad.current) {
-            setEquipmentLoadError("Não foi possível carregar os equipamentos salvos nesta sessão.");
-          }
-        });
-      fetchSessionDashboardSummary(scope)
-        .then((summary) => {
-          if (isMounted && !equipmentChangedDuringLoad.current) {
-            setDashboardSummary(summary);
-            setDashboardSummaryError("");
-          }
-        })
-        .catch((error: unknown) => {
-          console.error("Erro ao carregar resumo da sessão:", error);
-          if (isMounted && !equipmentChangedDuringLoad.current) {
-            setDashboardSummaryError("Não foi possível carregar as métricas da sessão.");
-          }
-        });
-    };
 
     if (mode === "demo") {
-      loadSessionData("demo");
+      void loadScopeData("demo");
     } else {
       void (async () => {
         try {
@@ -131,15 +177,16 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
           }
           if (!isMounted) return;
 
-          const accountScope = `account:${data.user.id}` as const;
           const storedCompanyId = readSelectedCompanyId(dashboard.email);
           const selectedCompany = dashboard.companies.find(
             (company) => String(company.id_company) === storedCompanyId,
           ) ?? dashboard.companies[0];
           const nextCompanyId = String(selectedCompany.id_company);
+          const accountScope = `account:${data.user.id}:${nextCompanyId}` as const;
 
+          accountUserId.current = data.user.id;
           setSessionScope(accountScope);
-          setSessionEquipments(readCachedEquipments(accountScope));
+          setSessionEquipments([]);
           setAcknowledgedAlertIds(readAcknowledgedAlertIds(accountScope));
           setSelectedCompanyId(nextCompanyId);
           if (storedCompanyId !== nextCompanyId) {
@@ -147,7 +194,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
           }
           setAccountDashboard(dashboard);
           setAccountLoadError("");
-          loadSessionData(accountScope);
+          await loadScopeData(accountScope, selectedCompany.id_company);
         } catch (error) {
           console.error("Erro ao validar os dados da conta:", error);
           if (isMounted) {
@@ -163,6 +210,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
 
     return () => {
       isMounted = false;
+      equipmentDataRequestId.current += 1;
     };
   }, [mode, navigate]);
 
@@ -180,21 +228,36 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
   function selectCompany(companyId: string | number) {
     const companyIdString = String(companyId);
     setSelectedCompanyId(companyIdString);
+    const scope = accountUserId.current
+      ? `account:${accountUserId.current}:${companyIdString}` as const
+      : sessionScope;
+    setSessionScope(scope);
+    setSessionEquipments([]);
+    setAcknowledgedAlertIds(readAcknowledgedAlertIds(scope));
     if (accountDashboard && !saveSelectedCompanyId(accountDashboard.email, companyIdString)) {
       notify("Empresa selecionada, mas a preferência não pôde ser salva neste navegador.");
     }
+    void loadScopeData(scope, companyId);
   }
 
-  async function handleEquipmentAdded(equipments: SessionEquipmentRecord[]) {
-    equipmentChangedDuringLoad.current = true;
-    setSessionEquipments(equipments);
-    setEquipmentLoadError("");
-    try {
-      setDashboardSummary(await fetchSessionDashboardSummary(sessionScope));
-      setDashboardSummaryError("");
-    } catch (error) {
-      console.error("Erro ao atualizar resumo da sessão:", error);
-      setDashboardSummaryError("Não foi possível atualizar as métricas da sessão.");
+  async function handleEquipmentAdded(equipments?: SessionEquipmentRecord[]) {
+    if (mode === "account") {
+      await loadScopeData(sessionScope, selectedCompanyId ?? undefined);
+      return;
+    }
+
+    if (equipments) {
+      setSessionEquipments(equipments);
+      setEquipmentLoadError("");
+      try {
+        setDashboardSummary(await fetchSessionDashboardSummary(sessionScope));
+        setDashboardSummaryError("");
+      } catch (error) {
+        console.error("Erro ao atualizar resumo da sessão:", error);
+        setDashboardSummaryError("Não foi possível atualizar as métricas da sessão.");
+      }
+    } else {
+      await loadScopeData(sessionScope);
     }
   }
 
@@ -274,6 +337,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
           notify={notify}
           onEquipmentAdded={handleEquipmentAdded}
           scope={sessionScope}
+          companyId={selectedCompany?.id_company ?? null}
         />
       )}
       {toast && <div className="toast"><span><Icon name="check" /></span>{toast}</div>}

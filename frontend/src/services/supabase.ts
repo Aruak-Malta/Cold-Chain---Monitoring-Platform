@@ -12,6 +12,23 @@ export type AccountDashboard = {
   companies: AccountCompany[];
 };
 
+export type AccountEquipmentRecord = {
+  id_equipamento: number | string;
+  id_company: number | string;
+  nome: string;
+  serial: string;
+  setor: string | null;
+  tensao: 127 | 220 | null;
+};
+
+export type AccountEquipmentInput = {
+  id_company: number | string;
+  nome: string;
+  serial: string;
+  setor: string;
+  tensao: 127 | 220;
+};
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
@@ -27,6 +44,33 @@ export function getSupabaseClient() {
     );
   }
   return supabase;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function parseAccountEquipmentRecord(value: unknown): AccountEquipmentRecord {
+  if (
+    !isRecord(value) ||
+    (typeof value.id_equipamento !== "number" && typeof value.id_equipamento !== "string") ||
+    (typeof value.id_company !== "number" && typeof value.id_company !== "string") ||
+    typeof value.nome !== "string" ||
+    typeof value.serial !== "string" ||
+    (value.setor !== null && typeof value.setor !== "string") ||
+    (value.tensao !== null && value.tensao !== 127 && value.tensao !== 220)
+  ) {
+    throw new Error("O Supabase retornou um equipamento com dados inválidos.");
+  }
+
+  return {
+    id_equipamento: value.id_equipamento,
+    id_company: value.id_company,
+    nome: value.nome,
+    serial: value.serial,
+    setor: value.setor,
+    tensao: value.tensao,
+  };
 }
 
 export async function findLoginId(email: string): Promise<number | null> {
@@ -90,6 +134,48 @@ export async function fetchAccountDashboard(email: string): Promise<AccountDashb
     email,
     companies,
   };
+}
+
+export async function fetchCompanyEquipments(
+  companyId: number | string,
+): Promise<AccountEquipmentRecord[]> {
+  const { data, error } = await getSupabaseClient()
+    .from("Equipamento")
+    .select("id_equipamento, id_company, nome, serial, setor, tensao")
+    .eq("id_company", companyId)
+    .order("id_equipamento");
+
+  if (error) {
+    throw new Error(`Não foi possível carregar os equipamentos da empresa: ${error.message}`);
+  }
+
+  if (!Array.isArray(data)) {
+    throw new Error("O Supabase retornou uma lista de equipamentos inválida.");
+  }
+
+  return data.map(parseAccountEquipmentRecord);
+}
+
+export async function saveCompanyEquipment(
+  equipment: AccountEquipmentInput,
+): Promise<AccountEquipmentRecord> {
+  const { data, error } = await getSupabaseClient()
+    .from("Equipamento")
+    .insert({
+      id_company: equipment.id_company,
+      nome: equipment.nome,
+      serial: equipment.serial,
+      setor: equipment.setor,
+      tensao: equipment.tensao,
+    })
+    .select("id_equipamento, id_company, nome, serial, setor, tensao")
+    .single();
+
+  if (error) {
+    throw new Error(`Não foi possível salvar o equipamento na empresa: ${error.message}`);
+  }
+
+  return parseAccountEquipmentRecord(data);
 }
 
 export async function syncLoginName(email: string, name: string): Promise<void> {

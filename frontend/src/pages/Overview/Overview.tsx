@@ -152,9 +152,9 @@ export function Overview() {
       <section className="summary-grid">
         <SummaryCard
           icon="snow"
-          label="Equipamentos enviados"
+          label={mode === "account" ? "Equipamentos cadastrados" : "Equipamentos enviados"}
           value={dashboardSummary ? String(dashboardSummary.total_equipamentos) : "—"}
-          detail="Cadastrados nesta sessão"
+          detail={mode === "account" ? "Salvos na empresa selecionada" : "Cadastrados nesta sessão"}
           tone="blue"
         />
         <SummaryCard
@@ -201,7 +201,7 @@ export function Overview() {
         />
       )}
       <section className="section-header">
-        <div><h2>Equipamentos</h2><span>{uploadedEquipment.length ? "Dispositivos enviados nesta sessão" : mode === "demo" ? "Exemplo exibido até você enviar seu primeiro dispositivo" : "Nenhum dispositivo adicionado nesta sessão"}</span></div>
+        <div><h2>Equipamentos</h2><span>{uploadedEquipment.length ? mode === "account" ? "Equipamentos cadastrados na empresa selecionada" : "Dispositivos enviados nesta sessão" : mode === "demo" ? "Exemplo exibido até você enviar seu primeiro dispositivo" : "Nenhum equipamento cadastrado nesta empresa"}</span></div>
         <div className="equipment-tools">
           <div className="filter-tabs">
             {["Todos", "Em alerta"].map((item) => (

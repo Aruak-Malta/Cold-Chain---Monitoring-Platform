@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** autenticação, perfil de conta e empresas são gerenciados pelo Supabase; o cadastro de empresas exige ao menos um nome e CNPJ válido. Os cadastros de equipamentos continuam mantidos por sessão na memória do backend e no `sessionStorage` do navegador. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão usado pelos equipamentos demonstrativos; o painel lateral mantém o mesmo layout, apresenta os dados do JSON e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais. A tela de análises usa os laudos e séries da sessão, sem recorrer aos dados fixos da demonstração; métricas indisponíveis não são estimadas.
+> **Estado do projeto:** autenticação, perfil, empresas e cadastros de equipamentos da conta são gerenciados pelo Supabase. Equipamentos ficam vinculados à empresa selecionada, incluindo nome, número de série, setor e tensão; JSONs de telemetria e análises permanecem temporários na sessão. A demonstração continua usando cadastros por sessão. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão; o painel lateral apresenta os dados disponíveis e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais.
 
 ## Índice
 
@@ -23,14 +23,15 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 ## Funcionalidades atuais
 
 - Interface web com páginas de visão geral, equipamentos, alertas, análises, relatórios e configurações.
-- Formulário para cadastrar equipamento com nome e número de série.
+- Formulário para cadastrar equipamento por empresa com nome, número de série, setor e tensão de operação.
 - Upload opcional de JSON de telemetria durante o cadastro.
+- Persistência dos dados cadastrais do equipamento no Supabase, vinculados à empresa selecionada. O JSON e os resultados das análises continuam temporários na sessão.
 - Exibição dos equipamentos cadastrados nas telas de visão geral e equipamentos pelo mesmo modelo visual dos cartões existentes, com dados disponíveis do JSON e sem inventar métricas ausentes.
 - A visão geral mostra os dados reais agregados pelo backend para a sessão atual e não apresenta alertas, consumo, custos ou atividade de demonstração como se fossem dados reais.
 - API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos, incluindo uma curva de temperatura suavizada de forma robusta no backend.
 - Tela de análises alimentada pelos dados cadastrados na sessão, com indicadores agregados calculados pelo backend, comparação horizontal de Health Score/duty cycle/risco térmico e investigação individual com laudos e séries reais.
 - Página de avisos baseada em diagnósticos calculados pelo backend sobre a telemetria completa: desvios térmicos persistentes, corrente alta sustentada, refrigeração possivelmente ineficiente, duty cycle e qualidade/atualidade dos dados. Os reconhecimentos ficam no `sessionStorage` da aba e o contador de navegação acompanha avisos pendentes.
-- Cadastro de vários equipamentos por sessão, com prevenção de números de série repetidos dentro da mesma sessão.
+- Cadastro de vários equipamentos na empresa selecionada; não há verificação de duplicidade do número de série no Supabase.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
 
@@ -85,16 +86,17 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 1. No projeto Supabase, execute [`supabase/auth-setup.sql`](./supabase/auth-setup.sql) no SQL Editor. O script mantém o Supabase Auth como fonte das credenciais, torna `Login.senha` opcional (a aplicação nunca grava senhas nessa tabela), habilita RLS e restringe os registros de `Login` e `Company` ao usuário autenticado. As tabelas devem ter os campos `Login(id_login, email, nome)` e `Company(id_company, id_login, nome, cnpj)`, com `Company.id_login` relacionado a `Login.id_login`.
 2. Para exibir os dados das empresas no painel autenticado, execute [`supabase/dashboard-company-access.sql`](./supabase/dashboard-company-access.sql). Ele libera a leitura das colunas necessárias para usuários autenticados; a política RLS existente continua limitando quais empresas cada conta pode ler.
 3. Para atualizar instalações que já executaram o `auth-setup.sql`, execute [`supabase/login-name-update.sql`](./supabase/login-name-update.sql). Ele permite atualizar apenas `Login.nome` do usuário autenticado e mantém a política RLS limitada ao e-mail da sessão. O fluxo Google usa o nome completo do perfil do provedor, incluindo sobrenome quando disponível.
-4. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
-5. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
-6. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
+4. Execute [`supabase/equipment-persistence.sql`](./supabase/equipment-persistence.sql) para preparar `Equipamento` para os campos do formulário, habilitar RLS e permitir que usuários autenticados leiam e cadastrem equipamentos somente nas próprias empresas. Equipamentos antigos sem tensão permanecem com `NULL`; as tensões aceitas são 127 V e 220 V. Se já houver equipamentos sem nome ou número de série, o script para sem inventar esses dados. Não é criada uma regra de unicidade para o número de série.
+5. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
+6. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
+7. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
 
    ```dotenv
    VITE_SUPABASE_URL=https://<project-ref>.supabase.co
    VITE_SUPABASE_ANON_KEY=<public-anon-key>
    ```
 
-7. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
+8. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
 
 O botão **Ver demonstração** continua acessível sem conta em `/demo`. **Acessar Painel** abre o login; após autenticar, uma conta sem empresas é encaminhada ao cadastro obrigatório e uma conta com empresas vai para `/app`. A rota `/app` valida a sessão e mostra somente os dados da conta; a demonstração continua isolada em `/demo`. No painel, use o seletor da barra lateral para alternar entre empresas; a opção **Adicionar empresa** abre o cadastro de outra empresa. O login Google cria/valida a sessão pelo Supabase Auth e também segue para o cadastro de empresas quando necessário.
 
@@ -198,11 +200,11 @@ npm run dev
 Com os dois servidores em execução:
 
 1. Abra o endereço do Vite no navegador.
-2. Vá para **Equipamentos** e clique em **Novo equipamento**.
+2. Entre em `/demo`, vá para **Equipamentos** e clique em **Novo equipamento** para testar o cadastro por sessão. No painel autenticado, o cadastro fica salvo na empresa selecionada.
 3. Informe um nome e um número de série. Por exemplo, `Freezer de teste` e `TESTE-001`.
 4. Para incluir telemetria, selecione `backend/dados_simulados.json` ou um JSON que siga o [formato documentado abaixo](#formato-do-json-de-telemetria).
 5. Envie o cadastro. Cadastre outro dispositivo com outro número de série; os dois devem ser aceitos.
-6. Tente enviar novamente o mesmo número de série na mesma aba. A API deve responder com conflito e o frontend deve avisar que o número já existe na sessão.
+6. Na demonstração, tente enviar novamente o mesmo número de série na mesma aba. A API deve responder com conflito. No painel de conta, não há verificação de duplicidade do número de série.
 
 ### Testes automatizados do backend
 
@@ -400,16 +402,17 @@ O resultado `analise_avancada` contém `termica`, `eletrica`, `qualidade`, `avis
 ## Armazenamento e sessões
 
 - O frontend gera um identificador com `crypto.randomUUID()` e guarda-o em `sessionStorage["cold-chain-session-id"]`.
-- Cada requisição de cadastro/listagem envia esse identificador no cabeçalho HTTP `X-Session-ID`.
-- O backend guarda registros em memória, separados por identificador de sessão. Não grava esses dados em arquivo ou banco.
-- A telemetria bruta fica somente na memória do backend para permitir a análise avançada; reiniciar o backend apaga também esses dados e os resultados.
+- Cada requisição de telemetria envia esse identificador no cabeçalho HTTP `X-Session-ID`; no painel de conta, a sessão também é isolada por empresa.
+- Os dados cadastrais de equipamentos da conta ficam na tabela `Equipamento` do Supabase, vinculados a `id_company`. A demonstração continua usando somente a sessão.
+- O backend guarda JSONs e análises em memória, separados por identificador de sessão; não grava a telemetria em arquivo ou banco.
 - O frontend guarda a última lista devolvida pelo backend em `sessionStorage["equipamentos"]`.
 - O Supabase Auth autentica contas; os perfis e empresas ficam nas tabelas públicas `Login` e `Company`, protegidas por RLS. Isso não torna os endpoints de telemetria do backend autenticados.
-- A interface carrega a lista da sessão pela API e converte cada cadastro para o modelo `Equipment` já usado pelos cartões existentes. Assim, dados de demonstração e cadastrados passam pelo mesmo componente visual; valores que não existem no JSON aparecem como `—`, sem estimativas inventadas.
+- No painel de conta, a interface carrega equipamentos do Supabase e combina seus metadados com a telemetria correspondente da sessão. A demonstração carrega os equipamentos diretamente da sessão.
+- Valores que não existem no JSON aparecem como `—`, sem estimativas inventadas.
 - O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON e exibindo os resultados da análise avançada. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
 - `sessionStorage` pertence à aba do navegador e sobrevive a recarregamentos da página, mas pode ser limpo ao encerrar a sessão da aba.
-- Reiniciar o backend apaga os cadastros mantidos em memória. Depois de reiniciado, o `sessionStorage` do navegador pode ainda mostrar a lista antiga, mas a API estará vazia.
-- Os registros ficam isolados por sessão, e o mesmo número de série pode ser cadastrado em sessões diferentes.
+- Reiniciar o backend apaga JSONs e análises mantidos em memória. Os equipamentos da conta continuam salvos no Supabase; após reiniciar, a telemetria precisa ser enviada novamente.
+- O mesmo número de série pode ser cadastrado mais de uma vez; não há verificação de MAC/serial no Supabase.
 
 ## Solução de problemas
 
@@ -450,5 +453,5 @@ O arquivo não é JSON válido ou não tem o formato de objeto/lista esperado. C
 - O Supabase Auth protege os perfis e empresas, mas os endpoints de telemetria ainda usam apenas `X-Session-ID`, que não autentica usuários nem protege dados contra alguém que conheça o identificador.
 - Os dados em memória são voláteis e não são compartilhados entre múltiplos processos/instâncias do servidor.
 - Não envie telemetria confidencial para esta versão sem validar a autenticação e autorização do usuário também nos endpoints do backend, além de implementar limites de upload e armazenamento apropriado.
-- O formulário atualmente envia nome, número de série e arquivo JSON; outros campos visuais do modal, como setor e tensão, ainda não fazem parte do cadastro da API.
+- No painel de conta, a tensão é persistida no Supabase junto aos demais dados cadastrais do equipamento; a demonstração não oferece esse campo.
 - Os cartões demonstrativos continuam visíveis junto dos equipamentos cadastrados. A tela de análises ainda não consolida os dados dos JSONs; seus gráficos são demonstrativos.

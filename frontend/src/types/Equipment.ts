@@ -80,6 +80,7 @@ export type Equipment = {
   points: string;
   analysis?: AdvancedAnalysis | null;
   serial?: string;
+  voltage?: 127 | 220 | null;
   temperatureLabel?: string;
   humidityLabel?: string;
   currentLabel?: string;

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import {
   ArrowRight,
   Bell,
@@ -78,6 +78,7 @@ function BrandMark({ className = "" }: Readonly<{ className?: string }>) {
 
 export function LandingPage() {
   const pageRef = useRef<HTMLElement>(null);
+  const revealObserverRef = useRef<IntersectionObserver | null>(null);
 
   useEffect(() => {
     const page = pageRef.current;
@@ -107,12 +108,47 @@ export function LandingPage() {
       { threshold: 0.12, rootMargin: "0px 0px -36px 0px" },
     );
 
+    revealObserverRef.current = observer;
     targets.forEach((target) => observer.observe(target));
     return () => {
       observer.disconnect();
+      revealObserverRef.current = null;
       page.classList.remove("scroll-reveal-enabled");
     };
   }, []);
+
+  function navigateToSection(event: MouseEvent<HTMLAnchorElement>, sectionId: string) {
+    if (
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey ||
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    const section = pageRef.current?.querySelector<HTMLElement>(`#${sectionId}`);
+    if (!section) {
+      return;
+    }
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!reducedMotion) {
+      const observer = revealObserverRef.current;
+      section.querySelectorAll<HTMLElement>("[data-scroll-reveal]").forEach((target) => {
+        observer?.unobserve(target);
+        target.classList.remove("is-visible");
+        observer?.observe(target);
+      });
+    }
+
+    if (window.location.hash !== `#${sectionId}`) {
+      window.history.pushState(null, "", `#${sectionId}`);
+    }
+    section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+  }
 
   return (
     <main className="sales-page" ref={pageRef}>
@@ -123,8 +159,12 @@ export function LandingPage() {
             <span>Cold Ghost</span>
           </a>
           <nav className="sales-nav" aria-label="Navegação principal">
-            <a href="#funcionalidades">Funcionalidades</a>
-            <a href="#planos">Planos</a>
+            <a href="#funcionalidades" onClick={(event) => navigateToSection(event, "funcionalidades")}>
+              Funcionalidades
+            </a>
+            <a href="#planos" onClick={(event) => navigateToSection(event, "planos")}>
+              Planos
+            </a>
             <Link to="/cadastro">Cadastro</Link>
             <Link className="sales-nav-cta" to="/painel">Acessar Painel</Link>
           </nav>

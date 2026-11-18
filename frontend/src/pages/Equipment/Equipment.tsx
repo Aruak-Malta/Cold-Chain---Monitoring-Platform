@@ -21,6 +21,7 @@ export function Equipment() {
     search,
     mode,
     accountDashboard,
+    selectedCompany,
     sessionEquipments,
     equipmentLoadError,
     openEquipment,
@@ -28,9 +29,18 @@ export function Equipment() {
   } = useOutletContext<AppOutletContext>();
   const [status, setStatus] = useState("Todos");
   const [sector, setSector] = useState("Todos os setores");
-  const [companyId, setCompanyId] = useState("all");
+  const [companyId, setCompanyId] = useState(
+    () => selectedCompany ? String(selectedCompany.id_company) : "all",
+  );
   const [companyEquipments, setCompanyEquipments] = useState<CompanyEquipment[]>([]);
   const [companyEquipmentError, setCompanyEquipmentError] = useState("");
+  const activeCompanyId = selectedCompany?.id_company;
+
+  useEffect(() => {
+    if (activeCompanyId !== undefined) {
+      setCompanyId(String(activeCompanyId));
+    }
+  }, [activeCompanyId]);
 
   useEffect(() => {
     let isMounted = true;

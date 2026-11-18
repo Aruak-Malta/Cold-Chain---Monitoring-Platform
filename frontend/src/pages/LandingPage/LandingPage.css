@@ -123,6 +123,7 @@
   color: #137b6d;
   font-size: 12px;
   font-weight: 700;
+  animation: sales-enter .65s cubic-bezier(.2, .75, .25, 1) .08s both;
 }
 
 .sales-live-badge>span {
@@ -150,6 +151,7 @@
   font-weight: 800;
   letter-spacing: -3px;
   line-height: 1.12;
+  animation: sales-enter .7s cubic-bezier(.2, .75, .25, 1) .16s both;
 }
 
 .sales-hero h1 span {
@@ -162,6 +164,7 @@
   color: var(--sales-muted);
   font-size: 17px;
   line-height: 1.7;
+  animation: sales-enter .7s cubic-bezier(.2, .75, .25, 1) .24s both;
 }
 
 .sales-hero-actions {
@@ -169,6 +172,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 20px;
+  animation: sales-enter .7s cubic-bezier(.2, .75, .25, 1) .32s both;
 }
 
 .sales-button {
@@ -260,6 +264,7 @@
   border-radius: 20px;
   background: rgba(255, 255, 255, .97);
   box-shadow: 0 24px 65px rgba(34, 57, 68, .15);
+  animation: sales-enter-side .8s cubic-bezier(.2, .75, .25, 1) .2s both;
 }
 
 .sales-dashboard-head {
@@ -393,6 +398,60 @@
 
 @keyframes sales-pulse {
   50% { opacity: .72; }
+}
+
+@keyframes sales-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes sales-enter-side {
+  from {
+    opacity: 0;
+    transform: translate(22px, 8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+}
+
+#funcionalidades,
+#planos {
+  scroll-margin-top: 88px;
+}
+
+.sales-page.scroll-reveal-enabled [data-scroll-reveal] {
+  opacity: 0;
+  translate: 0 24px;
+  transition:
+    opacity .65s cubic-bezier(.2, .75, .25, 1),
+    translate .65s cubic-bezier(.2, .75, .25, 1);
+}
+
+.sales-page.scroll-reveal-enabled [data-scroll-reveal].is-visible {
+  opacity: 1;
+  translate: 0 0;
+}
+
+.sales-feature-grid [data-scroll-reveal]:nth-child(2),
+.sales-plan-grid [data-scroll-reveal]:nth-child(2) {
+  transition-delay: 90ms;
+}
+
+.sales-feature-grid [data-scroll-reveal]:nth-child(3),
+.sales-plan-grid [data-scroll-reveal]:nth-child(3) {
+  transition-delay: 180ms;
+}
+
+.sales-plan-grid [data-scroll-reveal]:nth-child(4) {
+  transition-delay: 270ms;
 }
 
 .sales-features,

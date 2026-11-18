@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   ArrowRight,
   Bell,
@@ -76,8 +77,45 @@ function BrandMark({ className = "" }: Readonly<{ className?: string }>) {
 }
 
 export function LandingPage() {
+  const pageRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const page = pageRef.current;
+    if (
+      !page ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      !("IntersectionObserver" in window)
+    ) {
+      return;
+    }
+
+    const targets = page.querySelectorAll<HTMLElement>("[data-scroll-reveal]");
+    if (!targets.length) {
+      return;
+    }
+
+    page.classList.add("scroll-reveal-enabled");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -36px 0px" },
+    );
+
+    targets.forEach((target) => observer.observe(target));
+    return () => {
+      observer.disconnect();
+      page.classList.remove("scroll-reveal-enabled");
+    };
+  }, []);
+
   return (
-    <main className="sales-page">
+    <main className="sales-page" ref={pageRef}>
       <header className="sales-header">
         <div className="sales-container sales-header-inner">
           <a className="sales-brand" href="#inicio" aria-label="Cold Ghost, início">
@@ -157,7 +195,7 @@ export function LandingPage() {
 
       <section className="sales-features" id="funcionalidades">
         <div className="sales-container">
-          <div className="sales-section-heading">
+          <div className="sales-section-heading" data-scroll-reveal>
             <span className="sales-eyebrow">MAIS SEGURANÇA PARA SUA OPERAÇÃO</span>
             <h2>Inteligência que ajuda a evitar prejuízos.</h2>
             <p>
@@ -166,17 +204,17 @@ export function LandingPage() {
             </p>
           </div>
           <div className="sales-feature-grid">
-            <article className="sales-feature-card">
+            <article className="sales-feature-card" data-scroll-reveal>
               <span className="sales-feature-icon feature-teal"><Thermometer aria-hidden="true" /></span>
               <h3>Temperatura sob controle</h3>
               <p>Acompanhe as condições dos seus freezers e câmaras frias e proteja a qualidade dos produtos.</p>
             </article>
-            <article className="sales-feature-card">
+            <article className="sales-feature-card" data-scroll-reveal>
               <span className="sales-feature-icon feature-red"><Zap aria-hidden="true" /></span>
               <h3>Consumo de energia</h3>
               <p>Encontre equipamentos que podem estar elevando sua conta e investigue mudanças no consumo.</p>
             </article>
-            <article className="sales-feature-card">
+            <article className="sales-feature-card" data-scroll-reveal>
               <span className="sales-feature-icon feature-teal"><Bell aria-hidden="true" /></span>
               <h3>Alertas inteligentes</h3>
               <p>Saiba quando as leituras indicam mudanças que merecem sua atenção, sem precisar conferir tudo manualmente.</p>
@@ -190,7 +228,7 @@ export function LandingPage() {
 
       <section className="sales-how">
         <div className="sales-container">
-          <div className="sales-section-heading">
+          <div className="sales-section-heading" data-scroll-reveal>
             <span className="sales-eyebrow">DO EQUIPAMENTO À INFORMAÇÃO</span>
             <h2>Comece a monitorar em três passos.</h2>
           </div>
@@ -227,7 +265,7 @@ export function LandingPage() {
           </div>
           <div className="sales-plan-grid">
             {plans.map((plan) => (
-              <article className={`sales-plan-card${plan.featured ? " plan-featured" : ""}`} key={plan.name}>
+              <article className={`sales-plan-card${plan.featured ? " plan-featured" : ""}`} data-scroll-reveal key={plan.name}>
                 {plan.featured && <span className="sales-plan-badge">Recomendado</span>}
                 <h3>{plan.name}</h3>
                 <p className="sales-plan-description">{plan.description}</p>

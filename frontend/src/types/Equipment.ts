@@ -80,6 +80,9 @@ export type Equipment = {
   points: string;
   analysis?: AdvancedAnalysis | null;
   serial?: string;
+  macAddress?: string;
+  companyId?: number | string;
+  companyName?: string;
   voltage?: 127 | 220 | null;
   temperatureLabel?: string;
   humidityLabel?: string;

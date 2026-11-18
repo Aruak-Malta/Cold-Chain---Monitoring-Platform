@@ -62,7 +62,7 @@ export function AddEquipmentModal({
     if (!response.ok) {
       throw new Error(
         response.status === 409
-          ? "Já existe um equipamento com esse número de série nesta sessão."
+          ? "Já existe um equipamento com esse MAC Address nesta sessão."
           : `Não foi possível cadastrar o equipamento na sessão (erro ${response.status}).`,
       );
     }
@@ -91,7 +91,7 @@ export function AddEquipmentModal({
     }
 
     if (!name.trim() || !serial.trim()) {
-      notify("Preencha o nome e o número de série.");
+      notify("Preencha o nome e o MAC Address.");
       return;
     }
 
@@ -172,7 +172,7 @@ export function AddEquipmentModal({
         </div>
         <div className="modal-form">
           <label>Nome do equipamento<input placeholder="Ex.: Freezer Sorvetes 03" value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label>Número de série / MAC Address<input placeholder="AA:BB:CC:DD:EE:FF" value={serial} onChange={(event) => setSerial(event.target.value)} /></label>
+          <label>MAC Address<input placeholder="AA:BB:CC:DD:EE:FF" value={serial} onChange={(event) => setSerial(event.target.value)} /></label>
           <label>Setor<select value={sector} onChange={(event) => setSector(event.target.value)}><option>Congelados</option><option>Açougue</option><option>Bebidas</option><option>Laticínios</option></select></label>
           {scope !== "demo" && (
             <label>

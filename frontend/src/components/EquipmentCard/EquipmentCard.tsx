@@ -13,7 +13,13 @@ export function EquipmentCard({ equipment, onOpen }: Readonly<EquipmentCardProps
       <div className="card-top">
         <div className="equipment-title">
           <span className="equipment-icon"><Icon name="snow" /></span>
-          <div><h3>{equipment.name}</h3><p>{equipment.place}</p></div>
+          <div>
+            <h3>{equipment.name}</h3>
+            <p>
+              {equipment.place}
+              {equipment.macAddress ? ` · MAC Address ${equipment.macAddress}` : ""}
+            </p>
+          </div>
         </div>
         <StatusPill status={equipment.status} />
       </div>

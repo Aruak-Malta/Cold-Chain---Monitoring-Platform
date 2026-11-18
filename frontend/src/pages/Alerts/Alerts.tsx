@@ -118,7 +118,7 @@ export function Alerts() {
                 </span>
                 <div className="alert-main">
                   <strong>{alert.title}</strong>
-                  <p>{alert.equipmentName} · Série {alert.equipmentSerial}</p>
+                  <p>{alert.equipmentName} · MAC Address {alert.equipmentSerial}</p>
                   <p>{alert.detail}</p>
                 </div>
                 <span className="alert-measurement">{alert.value}</span>

@@ -180,7 +180,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
     ? hasSessionRecord
       ? equipment.analysis
         ? `${equipment.analysis.saude.status_geral} · ${telemetry?.readingCount ?? 0} leituras`
-        : `${telemetry?.readingCount ?? 0} leituras · Série ${equipment.serial}`
+        : `${telemetry?.readingCount ?? 0} leituras · MAC Address ${equipment.macAddress ?? equipment.serial ?? "—"}`
       : "Não há informação de saúde disponível."
     : equipment.analysis
       ? equipment.analysis.saude.status_geral
@@ -198,6 +198,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             <h2>{equipment.name}</h2>
             <p>
               {equipment.place}
+              {equipment.macAddress ? ` · MAC Address ${equipment.macAddress}` : ""}
               {equipment.voltage ? ` · ${equipment.voltage} V` : ""}
             </p>
           </div>

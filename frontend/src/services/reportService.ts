@@ -253,7 +253,7 @@ function getManagementLines(
       .filter((value): value is number => value !== null);
     const equipmentEnergyKwh = estimateEnergyKwh(equipmentReadings);
     lines.push(
-      `${equipment.nome} (série ${equipment.serial})`,
+      `${equipment.nome} (MAC Address ${equipment.serial})`,
       `Setor: ${equipment.setor || "Não informado"} · Leituras: ${equipmentReadings.length}`,
       `Temperatura média: ${formatNumber(average(equipmentTemperatures), 2)} °C · Umidade média: ${formatNumber(average(equipmentHumidities), 2)} %`,
       `Corrente máxima: ${formatNumber(maximum(equipmentCurrents), 2)} A · Alertas: ${alertsBySerial.get(equipment.serial) ?? 0}`,
@@ -287,7 +287,7 @@ function getAlertLines(
   for (const alert of alerts) {
     lines.push(
       `${alert.level === "critical" ? "Crítico" : "Atenção"} · ${alert.title}`,
-      `Equipamento: ${alert.equipmentName} (série ${alert.equipmentSerial})`,
+      `Equipamento: ${alert.equipmentName} (MAC Address ${alert.equipmentSerial})`,
       `Detalhe: ${alert.detail}`,
       `Reconhecimento nesta aba: ${acknowledgedIds.has(alert.id) ? "Sim" : "Não"}`,
       "",
@@ -322,7 +322,7 @@ function getEnergyLines(
   ranked.forEach(({ equipment, energyKwh }, index) => {
     const electrical = equipment.analise_avancada?.eletrica;
     lines.push(
-      `${index + 1}. ${equipment.nome} (série ${equipment.serial})`,
+      `${index + 1}. ${equipment.nome} (MAC Address ${equipment.serial})`,
       `Consumo estimado no período: ${energyKwh === null ? "Não disponível" : `${formatNumber(energyKwh, 3)} kWh`} · Custo: ${energyKwh === null ? "Não disponível" : `R$ ${formatNumber(energyKwh * readEnergyTariff(), 2)}`}`,
       `Duty cycle: ${formatNumber(electrical?.duty_cycle_percentual ?? null)} % · Potência estimada: ${formatNumber(electrical?.potencia_estimada_watts ?? null)} W`,
       `Corrente de trabalho média: ${formatNumber(electrical?.corrente_trabalho_media ?? null)} A · Partidas: ${electrical?.partidas_observadas ?? "Não disponível"}`,

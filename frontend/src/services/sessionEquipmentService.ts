@@ -386,7 +386,7 @@ export function toEquipment(record: SessionEquipmentRecord, index: number): Equi
   return {
     id: `session-${record.serial.toLowerCase()}-${index}`,
     name: record.nome,
-    place: `${record.setor ?? "Sem setor"} · Série ${record.serial}`,
+    place: record.setor ?? "Sem setor",
     temp: temperatureAverage === null ? "—" : `${format.format(temperatureAverage)} °C`,
     humidity: humidityAverage === null ? "—" : `${format.format(humidityAverage)}%`,
     current: currentMaximum === null ? "—" : `${format.format(currentMaximum)} A`,
@@ -396,6 +396,7 @@ export function toEquipment(record: SessionEquipmentRecord, index: number): Equi
     trend: record.analise_avancada?.termica?.falha_preditiva_detectada ? "rising" : "stable",
     points: "",
     serial: record.serial,
+    macAddress: record.serial,
     voltage: record.tensao ?? null,
     analysis: record.analise_avancada ?? null,
     temperatureLabel: telemetry ? "Temperatura média" : "Temperatura agora",

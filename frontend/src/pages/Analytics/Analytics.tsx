@@ -314,7 +314,7 @@ export function Analytics() {
                 onClick={() => setSelectedSerial(equipment.serial)}
                 type="button"
               >
-                <span className="comparison-equipment"><strong>{equipment.nome}</strong><small>{equipment.setor || "Sem setor"} · {equipment.serial}</small></span>
+                <span className="comparison-equipment"><strong>{equipment.nome}</strong><small>{equipment.setor || "Sem setor"} · MAC Address {equipment.serial}</small></span>
                 <span className="comparison-track"><i className={equipment.analise_avancada?.saude.status_geral === "Crítico" ? "critical" : ""} style={{ width: `${Math.min(Math.max(value, 0), 100)}%` }} /></span>
                 <strong className="comparison-number">{formatValue(value, metric === "health" ? " pts" : "%")}</strong>
               </button>
@@ -336,7 +336,7 @@ export function Analytics() {
           <div>
             <span className="section-kicker">INVESTIGAÇÃO DO EQUIPAMENTO</span>
             <h2>{selected?.nome ?? "Nenhum equipamento disponível"}</h2>
-            <p>{selected ? `${selected.setor || "Sem setor"} · Série ${selected.serial}` : "Cadastre telemetria para iniciar uma investigação."}</p>
+            <p>{selected ? `${selected.setor || "Sem setor"} · MAC Address ${selected.serial}` : "Cadastre telemetria para iniciar uma investigação."}</p>
           </div>
           {selected && (
             <div className="analysis-investigation-actions">

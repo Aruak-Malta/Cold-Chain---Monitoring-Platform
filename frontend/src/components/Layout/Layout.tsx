@@ -291,6 +291,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
           openMenu={() => setMobileOpen(true)}
           openAddEquipment={() => setAddModalOpen(true)}
           basePath={basePath}
+          hasNotifications={pendingAlertCount > 0}
         />
         <div className="content-wrap">
           <Outlet

@@ -134,10 +134,11 @@ export function LandingPage() {
       return;
     }
 
+    const scrollTarget = section;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (!reducedMotion) {
       const observer = revealObserverRef.current;
-      section.querySelectorAll<HTMLElement>("[data-scroll-reveal]").forEach((target) => {
+      scrollTarget.querySelectorAll<HTMLElement>("[data-scroll-reveal]").forEach((target) => {
         observer?.unobserve(target);
         target.classList.remove("is-visible");
         observer?.observe(target);
@@ -147,7 +148,7 @@ export function LandingPage() {
     if (window.location.hash !== `#${sectionId}`) {
       window.history.pushState(null, "", `#${sectionId}`);
     }
-    section.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    scrollTarget.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
   }
 
   return (

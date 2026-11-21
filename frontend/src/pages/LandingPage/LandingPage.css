@@ -4,7 +4,7 @@
   --sales-teal: #18a995;
   --sales-dark-teal: #117d72;
   min-height: 100vh;
-  overflow: hidden;
+  overflow: clip;
   background: #f8fafc;
   color: var(--sales-ink);
   font-family: "DM Sans", sans-serif;
@@ -422,9 +422,12 @@
   }
 }
 
-#funcionalidades,
-#planos {
+#funcionalidades {
   scroll-margin-top: 88px;
+}
+
+#planos {
+  scroll-margin-top: 72px;
 }
 
 .sales-page.scroll-reveal-enabled [data-scroll-reveal] {
@@ -643,7 +646,7 @@
 }
 
 .sales-plans {
-  padding-top: 88px;
+  padding-top: 24px;
   padding-bottom: 96px;
 }
 

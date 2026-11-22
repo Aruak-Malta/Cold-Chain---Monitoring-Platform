@@ -23,13 +23,19 @@ import {
 import {
   fetchAccountDashboard,
   fetchCompanyEquipments,
+  fetchAccountTelemetry,
   getSupabaseClient,
+  subscribeToAccountTelemetry,
 } from "../../services/supabase";
 import type {
   SessionDashboardSummary,
   SessionEquipmentRecord,
 } from "../../services/sessionEquipmentService";
-import type { AccountDashboard, AccountEquipmentRecord } from "../../services/supabase";
+import type {
+  AccountDashboard,
+  AccountEquipmentRecord,
+  AccountTelemetryRecord,
+} from "../../services/supabase";
 import type { Equipment } from "../../types/Equipment";
 import { AddEquipmentModal } from "../AddEquipmentModal/AddEquipmentModal";
 import { DetailDrawer } from "../DetailDrawer/DetailDrawer";
@@ -52,9 +58,71 @@ function readCachedEquipments(scope: SessionScope): SessionEquipmentRecord[] {
   }
 }
 
+function smoothValues(values: Array<number | null>): Array<number | null> {
+  return values.map((value, index) => {
+    if (value === null) return null;
+    const window = values.slice(Math.max(0, index - 2), index + 1).filter(
+      (item): item is number => item !== null,
+    );
+    if (!window.length) return null;
+    return window.reduce((sum, item) => sum + item, 0) / window.length;
+  });
+}
+
+function average(values: Array<number | null>): number | null {
+  const valid = values.filter((value): value is number => value !== null);
+  return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+}
+
+function maximum(values: Array<number | null>): number | null {
+  const valid = values.filter((value): value is number => value !== null);
+  return valid.length ? Math.max(...valid) : null;
+}
+
+function buildAccountTelemetry(
+  equipmentId: number | string,
+  readings: AccountTelemetryRecord[],
+) {
+  const ordered = readings
+    .filter((reading) => String(reading.id_equipamento) === String(equipmentId))
+    .sort((a, b) => {
+      const aTime = a.timestamp ? Date.parse(a.timestamp) : 0;
+      const bTime = b.timestamp ? Date.parse(b.timestamp) : 0;
+      return aTime - bTime;
+    });
+
+  if (!ordered.length) {
+    return null;
+  }
+
+  const times = ordered.map((reading) => reading.timestamp);
+  const temperatures = ordered.map((reading) => reading.temperature);
+  const humidities = ordered.map((reading) => reading.humidity);
+  const currents = ordered.map((reading) => reading.current);
+
+  return {
+    resumo_analise: {
+      temperatura_media: average(temperatures),
+      umidade_media: average(humidities),
+      corrente_maxima: maximum(currents),
+      total_leituras: ordered.length,
+    },
+    dados_graficos: {
+      tempos: times,
+      temperaturas: temperatures,
+      temperaturas_suavizadas: smoothValues(temperatures),
+      umidades: humidities,
+      umidades_suavizadas: smoothValues(humidities),
+      correntes: currents,
+      correntes_suavizadas: smoothValues(currents),
+    },
+  };
+}
+
 function mergeAccountEquipments(
   accountEquipments: AccountEquipmentRecord[],
   sessionEquipments: SessionEquipmentRecord[],
+  telemetryReadings: AccountTelemetryRecord[] = [],
 ): SessionEquipmentRecord[] {
   const sessionBySerial = new Map(
     sessionEquipments.map((equipment) => [equipment.serial.trim().toLowerCase(), equipment]),
@@ -62,12 +130,13 @@ function mergeAccountEquipments(
 
   return accountEquipments.map((equipment) => {
     const sessionEquipment = sessionBySerial.get(equipment.serial.trim().toLowerCase());
+    const accountTelemetry = buildAccountTelemetry(equipment.id_equipamento, telemetryReadings);
     return {
       nome: equipment.nome,
       serial: equipment.serial,
       setor: equipment.setor ?? undefined,
       tensao: equipment.tensao ?? undefined,
-      telemetria: sessionEquipment?.telemetria ?? null,
+      telemetria: sessionEquipment?.telemetria ?? accountTelemetry,
       analise_avancada: sessionEquipment?.analise_avancada ?? null,
     };
   });
@@ -101,6 +170,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
   const [accountLoadError, setAccountLoadError] = useState("");
   const accountUserId = useRef<string | null>(null);
   const equipmentDataRequestId = useRef(0);
+  const telemetrySubscriptionRef = useRef<ReturnType<typeof subscribeToAccountTelemetry>>(null);
   const pendingAlertCount = equipmentLoadError
     ? 0
     : getSessionAlerts(sessionEquipments).filter((alert) => !acknowledgedAlertIds.includes(alert.id)).length;
@@ -122,9 +192,35 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
 
     const sessionRecords = sessionResult.status === "fulfilled" ? sessionResult.value : [];
     const accountRecords = accountResult.status === "fulfilled" ? accountResult.value : null;
+    let telemetryReadings: AccountTelemetryRecord[] = [];
+    let telemetryError: unknown = null;
+    if (accountRecords?.length) {
+      try {
+        telemetryReadings = await fetchAccountTelemetry(
+          accountRecords.map((equipment) => equipment.id_equipamento),
+        );
+      } catch (error) {
+        console.error("Erro ao carregar dados de telemetria do Supabase:", error);
+        telemetryError = error;
+      }
+    }
     setSessionEquipments(
-      accountRecords ? mergeAccountEquipments(accountRecords, sessionRecords) : sessionRecords,
+      accountRecords
+        ? mergeAccountEquipments(accountRecords, sessionRecords, telemetryReadings)
+        : sessionRecords,
     );
+
+    if (accountRecords) {
+      if (telemetrySubscriptionRef.current) {
+        void telemetrySubscriptionRef.current.unsubscribe();
+      }
+      telemetrySubscriptionRef.current = subscribeToAccountTelemetry(
+        accountRecords.map((equipment) => equipment.id_equipamento),
+        () => {
+          void loadScopeData(scope, companyId);
+        },
+      );
+    }
 
     const loadErrors: string[] = [];
     if (sessionResult.status === "rejected") {
@@ -139,12 +235,32 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
           : "Não foi possível carregar os equipamentos da empresa.",
       );
     }
+    if (telemetryError) {
+      loadErrors.push(
+        telemetryError instanceof Error
+          ? telemetryError.message
+          : "Não foi possível carregar os dados do sensor.",
+      );
+    }
     setEquipmentLoadError(loadErrors.join(" "));
 
     if (summaryResult.status === "fulfilled") {
+      const equipmentIdsWithTelemetry = new Set(
+        telemetryReadings.map((reading) => String(reading.id_equipamento)),
+      );
+      const temperatures = telemetryReadings
+        .map((reading) => reading.temperature)
+        .filter((value): value is number => value !== null);
       setDashboardSummary({
         ...summaryResult.value,
         total_equipamentos: accountRecords?.length ?? summaryResult.value.total_equipamentos,
+        total_leituras: accountRecords ? telemetryReadings.length : summaryResult.value.total_leituras,
+        analises_concluidas: accountRecords
+          ? equipmentIdsWithTelemetry.size
+          : summaryResult.value.analises_concluidas,
+        temperatura_media: accountRecords
+          ? average(temperatures)
+          : summaryResult.value.temperatura_media,
       });
       setDashboardSummaryError("");
     } else {
@@ -211,6 +327,10 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
     return () => {
       isMounted = false;
       equipmentDataRequestId.current += 1;
+      if (telemetrySubscriptionRef.current) {
+        void telemetrySubscriptionRef.current.unsubscribe();
+        telemetrySubscriptionRef.current = null;
+      }
     };
   }, [mode, navigate]);
 

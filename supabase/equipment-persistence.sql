@@ -1,6 +1,6 @@
 -- Persist equipment metadata per company.
 -- Telemetry JSON and analysis results remain in the session API.
--- Serial/MAC uniqueness is intentionally not enforced by this migration.
+-- Equipment rows can be created by the sensor/broker before a company is selected.
 
 BEGIN;
 

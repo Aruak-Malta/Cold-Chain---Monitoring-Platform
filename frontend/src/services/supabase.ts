@@ -29,6 +29,14 @@ export type AccountEquipmentInput = {
   tensao: 127 | 220;
 };
 
+export type AccountTelemetryRecord = {
+  id_equipamento: number | string;
+  temperature: number | null;
+  humidity: number | null;
+  current: number | null;
+  timestamp: string | null;
+};
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
@@ -159,23 +167,99 @@ export async function fetchCompanyEquipments(
 export async function saveCompanyEquipment(
   equipment: AccountEquipmentInput,
 ): Promise<AccountEquipmentRecord> {
+  const normalizedMac = normalizeMacAddress(equipment.serial);
+  if (!normalizedMac) {
+    throw new Error("Informe o MAC Address do dispositivo.");
+  }
+
   const { data, error } = await getSupabaseClient()
-    .from("Equipamento")
-    .insert({
-      id_company: equipment.id_company,
-      nome_equipamento: equipment.nome,
-      mac_address: equipment.serial,
-      setor: equipment.setor,
-      tensao: equipment.tensao,
-    })
-    .select("id_equipamento, id_company, nome_equipamento, mac_address, setor, tensao")
-    .single();
+    .rpc("cold_ghost_link_equipment", {
+      p_mac_address: normalizedMac,
+      p_company_id: equipment.id_company,
+      p_name: equipment.nome,
+      p_setor: equipment.setor,
+      p_tensao: equipment.tensao,
+    });
 
   if (error) {
-    throw new Error(`Não foi possível salvar o equipamento na empresa: ${error.message}`);
+    const message = error.message.toLowerCase();
+    if (message.includes("dispositivo não encontrado")) {
+      throw new Error("Não existe um dispositivo enviado pelo sensor com esse MAC Address.");
+    }
+    if (message.includes("já vinculado")) {
+      throw new Error("Esse MAC Address já está vinculado a uma empresa.");
+    }
+    throw new Error(`Não foi possível vincular o equipamento à empresa: ${error.message}`);
+  }
+
+  if (!isRecord(data)) {
+    throw new Error("O Supabase não retornou o equipamento vinculado.");
   }
 
   return parseAccountEquipmentRecord(data);
+}
+
+export function normalizeMacAddress(value: string): string {
+  return value.trim().replace(/[^0-9a-f]/gi, "").toUpperCase();
+}
+
+export async function fetchAccountTelemetry(
+  equipmentIds: Array<number | string>,
+): Promise<AccountTelemetryRecord[]> {
+  if (!equipmentIds.length) {
+    return [];
+  }
+
+  const { data, error } = await getSupabaseClient()
+    .from("Data")
+    .select("id_data, id_equipamento, temperatura_float, umidade_float, corrente_float, timestamp")
+    .in("id_equipamento", equipmentIds)
+    .order("timestamp", { ascending: false })
+
+  if (error) {
+    throw new Error(`Não foi possível carregar os dados do sensor: ${error.message}`);
+  }
+  if (!Array.isArray(data)) {
+    throw new Error("O Supabase retornou dados de telemetria inválidos.");
+  }
+
+  return data.map((row) => {
+    if (!isRecord(row) || (typeof row.id_equipamento !== "number" && typeof row.id_equipamento !== "string")) {
+      throw new Error("O Supabase retornou uma leitura com equipamento inválido.");
+    }
+    return {
+      id_equipamento: row.id_equipamento,
+      temperature: toNullableFiniteNumber(row.temperatura_float),
+      humidity: toNullableFiniteNumber(row.umidade_float),
+      current: toNullableFiniteNumber(row.corrente_float),
+      timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
+    };
+  });
+}
+
+export function subscribeToAccountTelemetry(
+  equipmentIds: Array<number | string>,
+  callback: () => void,
+) {
+  if (!equipmentIds.length) {
+    return null;
+  }
+
+  const client = getSupabaseClient();
+  const channel = client
+    .channel(`cold-ghost-data-${equipmentIds.join("-")}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "Data" },
+      callback,
+    )
+    .subscribe();
+
+  return channel;
+}
+
+function toNullableFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 export async function syncLoginName(email: string, name: string): Promise<void> {

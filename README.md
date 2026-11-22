@@ -2,7 +2,7 @@
 
 Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositório contém uma interface web em React/TypeScript, uma API em Python/FastAPI e um gerador opcional de dados simulados.
 
-> **Estado do projeto:** autenticação, perfil, empresas e cadastros de equipamentos da conta são gerenciados pelo Supabase. Equipamentos ficam vinculados à empresa selecionada, incluindo nome, número de série/MAC Address, setor e tensão; JSONs de telemetria e análises permanecem temporários na sessão. A demonstração continua usando cadastros por sessão. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão; o painel lateral apresenta os dados disponíveis e os resultados da análise avançada. O gráfico de temperatura é suavizado para facilitar a leitura; as métricas numéricas são calculadas sobre as leituras originais.
+> **Estado do projeto:** autenticação, perfil, empresas e vínculos de equipamentos da conta são gerenciados pelo Supabase. O broker cria os equipamentos pelo MAC Address; o usuário vincula o registro existente à empresa e atualiza nome, setor e tensão. JSONs de telemetria e análises permanecem temporários na sessão. A demonstração continua usando cadastros por sessão. A visão geral e a tela de equipamentos convertem os cadastros para o mesmo modelo e componente de cartão.
 
 ## Índice
 
@@ -31,7 +31,7 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 - API que calcula médias de temperatura/umidade, corrente máxima, total de leituras e séries para gráficos, incluindo uma curva de temperatura suavizada de forma robusta no backend.
 - Tela de análises alimentada pelos dados cadastrados na sessão, com indicadores agregados calculados pelo backend, comparação horizontal de Health Score/duty cycle/risco térmico e investigação individual com laudos e séries reais.
 - Página de avisos baseada em diagnósticos calculados pelo backend sobre a telemetria completa: desvios térmicos persistentes, corrente alta sustentada, refrigeração possivelmente ineficiente, duty cycle e qualidade/atualidade dos dados. Os reconhecimentos ficam no `sessionStorage` da aba e o contador de navegação acompanha avisos pendentes.
-- Cadastro de vários equipamentos na empresa selecionada; não há validação de formato nem verificação de duplicidade do número de série/MAC Address no Supabase.
+- Cadastro de vários equipamentos na empresa selecionada; o broker cria os registros pelo MAC Address e o usuário vincula o registro existente à empresa. Nome, setor e tensão são atualizados no vínculo.
 - Endpoint para consultar os equipamentos já enviados naquela sessão.
 - Geração opcional de aproximadamente sete dias de leituras simuladas.
 
@@ -86,17 +86,19 @@ Aplicação MVP para monitoramento de equipamentos de cadeia fria. O repositóri
 1. No projeto Supabase, execute [`supabase/auth-setup.sql`](./supabase/auth-setup.sql) no SQL Editor. O script mantém o Supabase Auth como fonte das credenciais, torna `Login.senha` opcional (a aplicação nunca grava senhas nessa tabela), habilita RLS e restringe os registros de `Login` e `Company` ao usuário autenticado. As tabelas devem ter os campos `Login(id_login, email, nome)` e `Company(id_company, id_login, nome, cnpj)`, com `Company.id_login` relacionado a `Login.id_login`.
 2. Para exibir os dados das empresas no painel autenticado, execute [`supabase/dashboard-company-access.sql`](./supabase/dashboard-company-access.sql). Ele libera a leitura das colunas necessárias para usuários autenticados; a política RLS existente continua limitando quais empresas cada conta pode ler.
 3. Para atualizar instalações que já executaram o `auth-setup.sql`, execute [`supabase/login-name-update.sql`](./supabase/login-name-update.sql). Ele permite atualizar apenas `Login.nome` do usuário autenticado e mantém a política RLS limitada ao e-mail da sessão. O fluxo Google usa o nome completo do perfil do provedor, incluindo sobrenome quando disponível.
-4. Execute [`supabase/equipment-persistence.sql`](./supabase/equipment-persistence.sql) para preparar `Equipamento` para os campos do formulário, habilitar RLS e permitir que usuários autenticados leiam e cadastrem equipamentos somente nas próprias empresas. O nome é gravado na coluna existente `nome_equipamento` e o valor do campo de série/MAC é gravado em `mac_address`; a migração adiciona setor e tensão quando necessário. O acesso de tabela é limitado por políticas RLS à empresa do usuário autenticado. Equipamentos antigos sem tensão permanecem com `NULL`; as tensões aceitas são 127 V e 220 V. Não há validação de formato ou unicidade do MAC Address.
-5. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
-6. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
-7. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
+4. Execute [`supabase/equipment-persistence.sql`](./supabase/equipment-persistence.sql) para preparar `Equipamento` para os campos do formulário, habilitar RLS e permitir que usuários autenticados leiam e cadastrem equipamentos somente nas próprias empresas. O nome é gravado na coluna existente `nome_equipamento` e o valor do campo de série/MAC é gravado em `mac_address`; a migração adiciona setor e tensão quando necessário. O acesso de tabela é limitado por políticas RLS à empresa do usuário autenticado. Equipamentos antigos sem tensão permanecem com `NULL`; as tensões aceitas são 127 V e 220 V. O frontend impede o cadastro do mesmo MAC mais de uma vez na mesma empresa.
+5. Execute [`supabase/equipment-telemetry-access.sql`](./supabase/equipment-telemetry-access.sql) para permitir que usuários autenticados leiam somente as leituras da tabela `Data` vinculadas aos equipamentos das próprias empresas. Os dados são associados por `Data.id_equipamento` e o painel atualiza a telemetria em tempo real quando novas leituras chegam.
+6. Execute [`supabase/equipment-linking.sql`](./supabase/equipment-linking.sql) para criar a função segura que vincula um registro já criado pelo broker a uma empresa. A função localiza o registro por MAC Address, atualiza nome, setor, tensão e `id_company`, e rejeita dispositivos já vinculados ou MACs inexistentes.
+7. Para conferir e completar os relacionamentos do diagrama sem alterar ou apagar dados, execute [`supabase/schema-integrity.sql`](./supabase/schema-integrity.sql) no SQL Editor. O script é idempotente: mantém FKs existentes, valida FKs existentes que ainda não foram validadas e cria somente as que estiverem faltando entre `Login`, `Company`, `Equipamento`, `Data`, `Limites` e `Avisos`. Se encontrar tabelas/colunas ausentes ou dados que violem um relacionamento, ele falha sem remover registros; nesse caso, revise a mensagem antes de corrigir os dados.
+8. No Supabase, habilite Google em **Authentication → Providers → Google** e configure as URLs de redirecionamento de cadastro/login para `http://localhost:5173/empresas` e para `https://<seu-dominio>/empresas`.
+9. Crie `frontend/.env.local` com a URL do projeto e a chave pública (anon/publishable). Nunca use a chave `service_role` no frontend:
 
    ```dotenv
    VITE_SUPABASE_URL=https://<project-ref>.supabase.co
    VITE_SUPABASE_ANON_KEY=<public-anon-key>
    ```
 
-8. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
+10. No GitHub, em **Settings → Secrets and variables → Actions → Variables**, crie `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. O workflow do container passa essas variáveis ao build do frontend. Elas são públicas no bundle; não use `service_role`.
 
 O botão **Ver demonstração** continua acessível sem conta em `/demo`. **Acessar Painel** abre o login; após autenticar, uma conta sem empresas é encaminhada ao cadastro obrigatório e uma conta com empresas vai para `/app`. A rota `/app` valida a sessão e mostra somente os dados da conta; a demonstração continua isolada em `/demo`. No painel, use o seletor da barra lateral para alternar entre empresas; a opção **Adicionar empresa** abre o cadastro de outra empresa. O login Google cria/valida a sessão pelo Supabase Auth e também segue para o cadastro de empresas quando necessário.
 
@@ -201,10 +203,10 @@ Com os dois servidores em execução:
 
 1. Abra o endereço do Vite no navegador.
 2. Entre em `/demo`, vá para **Equipamentos** e clique em **Novo equipamento** para testar o cadastro por sessão. No painel autenticado, o cadastro fica salvo na empresa selecionada.
-3. Informe um nome e um número de série. Por exemplo, `Freezer de teste` e `TESTE-001`.
+3. Informe um nome e o MAC Address do dispositivo. Por exemplo, `Freezer de teste` e `AA:BB:CC:DD:EE:FF`.
 4. Para incluir telemetria, selecione `backend/dados_simulados.json` ou um JSON que siga o [formato documentado abaixo](#formato-do-json-de-telemetria).
-5. Envie o cadastro. Cadastre outro dispositivo com outro número de série; os dois devem ser aceitos.
-6. Na demonstração, tente enviar novamente o mesmo número de série na mesma aba. A API deve responder com conflito. No painel de conta, não há verificação de duplicidade do número de série.
+5. Envie o cadastro. Cadastre outro dispositivo com outro MAC Address; os dois devem ser aceitos.
+6. Na demonstração, tente enviar novamente o mesmo MAC Address na mesma aba. A API deve responder com conflito. No painel da conta, o frontend impede o mesmo MAC na mesma empresa.
 
 ### Testes automatizados do backend
 
@@ -407,12 +409,12 @@ O resultado `analise_avancada` contém `termica`, `eletrica`, `qualidade`, `avis
 - O backend guarda JSONs e análises em memória, separados por identificador de sessão; não grava a telemetria em arquivo ou banco.
 - O frontend guarda a última lista devolvida pelo backend em `sessionStorage["equipamentos"]`.
 - O Supabase Auth autentica contas; os perfis e empresas ficam nas tabelas públicas `Login` e `Company`, protegidas por RLS. Isso não torna os endpoints de telemetria do backend autenticados.
-- No painel de conta, a interface carrega equipamentos do Supabase e combina seus metadados com a telemetria correspondente da sessão. A demonstração carrega os equipamentos diretamente da sessão.
+- No painel de conta, a interface carrega equipamentos do Supabase e suas leituras da tabela `Data` pelo vínculo `id_equipamento`. Novas leituras atualizam o painel em tempo real.
 - Valores que não existem no JSON aparecem como `—`, sem estimativas inventadas.
 - O cartão utiliza o setor e o número de série na localização, temperatura/umidade médias, corrente máxima e a quantidade de leituras. O painel lateral reutiliza a estrutura dos detalhes existentes, substituindo os valores demonstrativos pelos dados do JSON e exibindo os resultados da análise avançada. O gráfico suaviza visualmente as leituras agrupadas sem alterar os cálculos das métricas.
 - `sessionStorage` pertence à aba do navegador e sobrevive a recarregamentos da página, mas pode ser limpo ao encerrar a sessão da aba.
-- Reiniciar o backend apaga JSONs e análises mantidos em memória. Os equipamentos da conta continuam salvos no Supabase; após reiniciar, a telemetria precisa ser enviada novamente.
-- O mesmo valor de série/MAC Address pode ser cadastrado mais de uma vez; não há validação de formato ou unicidade no Supabase.
+- Reiniciar o backend apaga JSONs e análises mantidos em memória. Os equipamentos da conta e as leituras enviadas pelo sensor continuam salvos no Supabase.
+- O mesmo MAC Address normalizado não pode ser cadastrado duas vezes na mesma empresa pelo frontend.
 
 ## Solução de problemas
 

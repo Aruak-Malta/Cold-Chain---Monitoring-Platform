@@ -96,7 +96,13 @@ export function AddEquipmentModal({
     }
 
     setSubmitting(true);
-    notify(file ? `A processar o ficheiro ${file.name}...` : `Cadastrando ${name}...`);
+    notify(
+      file
+        ? `A processar o ficheiro ${file.name}...`
+        : scope === "demo"
+          ? `Cadastrando ${name}...`
+          : `Vinculando ${name} à empresa...`,
+    );
     try {
       if (scope === "demo") {
         const equipments = await submitToSession();
@@ -115,7 +121,7 @@ export function AddEquipmentModal({
       }
 
       if (companyId === null) {
-        throw new Error("Selecione uma empresa antes de cadastrar o equipamento.");
+        throw new Error("Selecione uma empresa antes de vincular o equipamento.");
       }
 
       await saveCompanyEquipment({
@@ -131,17 +137,17 @@ export function AddEquipmentModal({
           const sessionEquipments = await submitToSession();
           sessionStorage.setItem(getEquipmentStorageKey(scope), JSON.stringify(sessionEquipments));
           await onEquipmentAdded(sessionEquipments);
-          notify(`${name} salvo na empresa. A análise do histórico está em andamento.`);
+          notify(`${name} vinculado à empresa. A análise do histórico está em andamento.`);
         } catch (error) {
-          console.error(`O equipamento foi salvo, mas não foi possível enviar o JSON de ${name}:`, error);
+          console.error(`O equipamento foi vinculado, mas não foi possível enviar o JSON de ${name}:`, error);
           await onEquipmentAdded();
-          notify(`${name} foi salvo na empresa, mas o envio do JSON falhou.`);
+          notify(`${name} foi vinculado à empresa, mas o envio do JSON falhou.`);
           close();
           return;
         }
       } else {
         await onEquipmentAdded();
-        notify(`${name} foi salvo na empresa e aguarda a primeira conexão.`);
+        notify(`${name} foi vinculado à empresa e aguarda a primeira leitura.`);
       }
 
       close();
@@ -165,7 +171,7 @@ export function AddEquipmentModal({
             <span className="summary-icon blue"><Icon name="snow" /></span>
             <div>
               <h2>Adicionar equipamento</h2>
-              <p>Cadastre um novo dispositivo IoT.</p>
+              <p>{scope === "demo" ? "Cadastre um novo dispositivo IoT." : "Vincule o dispositivo já registrado pelo sensor à empresa."}</p>
             </div>
           </div>
           <Button variant="ghost" className="icon-button" label="Fechar" onClick={close}><Icon name="close" /></Button>

@@ -6,11 +6,7 @@ import { PageTitle } from "../../components/PageTitle/PageTitle";
 import { getSessionAlerts } from "../../services/sessionAlertService";
 import { toEquipment } from "../../services/sessionEquipmentService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
-import type { Alert, AlertState } from "../../types/Alert";
-
-function alertState(alert: Alert, acknowledgedIds: string[]): AlertState {
-  return acknowledgedIds.includes(alert.id) ? "Reconhecido" : "Pendente";
-}
+import type { AlertState } from "../../types/Alert";
 
 export function Alerts() {
   const {
@@ -18,6 +14,7 @@ export function Alerts() {
     equipmentLoadError,
     acknowledgedAlertIds,
     acknowledgeAlerts,
+    accountAlerts,
     notify,
     openEquipment,
   } =
@@ -25,13 +22,16 @@ export function Alerts() {
   const [filter, setFilter] = useState<"Todos" | AlertState>("Todos");
 
   const generatedAlerts = useMemo(
-    () => equipmentLoadError ? [] : getSessionAlerts(sessionEquipments),
-    [equipmentLoadError, sessionEquipments],
+    () => equipmentLoadError
+      ? accountAlerts
+      : [...getSessionAlerts(sessionEquipments), ...accountAlerts],
+    [equipmentLoadError, sessionEquipments, accountAlerts],
   );
-  const alerts = generatedAlerts.map((alert) => ({
-    ...alert,
-    state: alertState(alert, acknowledgedAlertIds),
-  }));
+  const alerts = generatedAlerts.map((alert) =>
+    acknowledgedAlertIds.includes(alert.id)
+      ? { ...alert, state: "Reconhecido" as AlertState }
+      : alert,
+  );
   const pendingAlerts = alerts.filter((alert) => alert.state === "Pendente");
   const filteredAlerts = alerts.filter((alert) => filter === "Todos" || alert.state === filter);
   const criticalCount = pendingAlerts.filter((alert) => alert.level === "critical").length;

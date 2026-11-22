@@ -6,6 +6,7 @@ import type {
   SessionEquipmentRecord,
 } from "../services/sessionEquipmentService";
 import type { AccountCompany, AccountDashboard } from "../services/supabase";
+import type { Alert } from "./Alert";
 
 export type AppOutletContext = {
   search: string;
@@ -21,6 +22,7 @@ export type AppOutletContext = {
   dashboardSummaryError: string;
   acknowledgedAlertIds: string[];
   acknowledgeAlerts: (ids: string[]) => boolean;
+  accountAlerts: Alert[];
   openEquipment: (equipment: Equipment) => void;
   openAddEquipment: () => void;
   notify: (message: string) => void;

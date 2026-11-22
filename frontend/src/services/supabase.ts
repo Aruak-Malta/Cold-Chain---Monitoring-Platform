@@ -37,6 +37,14 @@ export type AccountTelemetryRecord = {
   timestamp: string | null;
 };
 
+export type AccountEquipmentLimit = {
+  id_equipamento: number | string;
+  temperatura_minima: number;
+  temperatura_maxima: number;
+  tolerancia_minutos: number;
+  watchdog_minutos: number;
+};
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
 
@@ -201,6 +209,138 @@ export async function saveCompanyEquipment(
 
 export function normalizeMacAddress(value: string): string {
   return value.trim().replace(/[^0-9a-f]/gi, "").toUpperCase();
+}
+
+export async function fetchEquipmentLimits(
+  equipmentIds: Array<number | string>,
+): Promise<AccountEquipmentLimit[]> {
+  if (!equipmentIds.length) return [];
+  const { data, error } = await getSupabaseClient()
+    .from("Limites")
+    .select("id_equipamento, temperatura_minima, temperatura_maxima, tolerancia_minutos, watchdog_minutos")
+    .in("id_equipamento", equipmentIds);
+  if (error) {
+    throw new Error(`Não foi possível carregar os limites dos equipamentos: ${error.message}`);
+  }
+  if (!Array.isArray(data)) {
+    throw new Error("O Supabase retornou limites inválidos.");
+  }
+  return data.map((row) => {
+    if (
+      !isRecord(row) ||
+      (typeof row.id_equipamento !== "number" && typeof row.id_equipamento !== "string") ||
+      typeof row.temperatura_minima !== "number" ||
+      typeof row.temperatura_maxima !== "number"
+    ) {
+      throw new Error("O Supabase retornou um limite de equipamento inválido.");
+    }
+    return {
+      id_equipamento: row.id_equipamento,
+      temperatura_minima: row.temperatura_minima,
+      temperatura_maxima: row.temperatura_maxima,
+      tolerancia_minutos: typeof row.tolerancia_minutos === "number" ? row.tolerancia_minutos : 5,
+      watchdog_minutos: typeof row.watchdog_minutos === "number" ? row.watchdog_minutos : 10,
+    };
+  });
+}
+
+export async function fetchCompanyEquipmentLimits(
+  companyId: number | string,
+): Promise<Array<AccountEquipmentLimit & { mac_address: string; nome_equipamento: string }>> {
+  const { data, error } = await getSupabaseClient()
+    .from("Limites")
+    .select("id_equipamento, temperatura_minima, temperatura_maxima, tolerancia_minutos, watchdog_minutos, Equipamento!inner(id_company, mac_address, nome_equipamento)")
+    .eq("Equipamento.id_company", companyId);
+  if (error) {
+    throw new Error(`Não foi possível carregar os limites da empresa: ${error.message}`);
+  }
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => {
+    if (!isRecord(row) || !isRecord(row.Equipamento)) {
+      throw new Error("O Supabase retornou um limite inválido.");
+    }
+    return {
+      id_equipamento: typeof row.id_equipamento === "number" || typeof row.id_equipamento === "string"
+        ? row.id_equipamento
+        : 0,
+      temperatura_minima: typeof row.temperatura_minima === "number" ? row.temperatura_minima : -22,
+      temperatura_maxima: typeof row.temperatura_maxima === "number" ? row.temperatura_maxima : 12,
+      tolerancia_minutos: typeof row.tolerancia_minutos === "number" ? row.tolerancia_minutos : 5,
+      watchdog_minutos: typeof row.watchdog_minutos === "number" ? row.watchdog_minutos : 10,
+      mac_address: typeof row.Equipamento.mac_address === "string" ? row.Equipamento.mac_address : "",
+      nome_equipamento: typeof row.Equipamento.nome_equipamento === "string" ? row.Equipamento.nome_equipamento : "Equipamento",
+    };
+  });
+}
+
+export async function saveEquipmentLimits(
+  equipmentId: number | string,
+  limits: Omit<AccountEquipmentLimit, "id_equipamento">,
+): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from("Limites")
+    .upsert({
+      id_equipamento: equipmentId,
+      temperatura_minima: limits.temperatura_minima,
+      temperatura_maxima: limits.temperatura_maxima,
+      tolerancia_minutos: limits.tolerancia_minutos,
+      watchdog_minutos: limits.watchdog_minutos,
+    }, { onConflict: "id_equipamento" });
+  if (error) {
+    throw new Error(`Não foi possível salvar os limites do equipamento: ${error.message}`);
+  }
+}
+
+export type AccountStoredAlert = {
+  id: number | string;
+  id_equipamento: number | string;
+  codigo: string;
+  nivel: "critical" | "warning";
+  titulo: string;
+  detalhe: string;
+  valor: string;
+  timestamp: string | null;
+  reconhecido: boolean;
+};
+
+export async function fetchAccountAlerts(
+  equipmentIds: Array<number | string>,
+): Promise<AccountStoredAlert[]> {
+  if (!equipmentIds.length) return [];
+  const { data, error } = await getSupabaseClient()
+    .from("Avisos")
+    .select("id_aviso, id_equipamento, codigo, nivel, titulo, detalhe, valor, timestamp, reconhecido")
+    .in("id_equipamento", equipmentIds)
+    .order("timestamp", { ascending: false });
+  if (error) {
+    throw new Error(`Não foi possível carregar os avisos persistidos: ${error.message}`);
+  }
+  if (!Array.isArray(data)) return [];
+  return data.map((row) => {
+    if (!isRecord(row)) throw new Error("O Supabase retornou um aviso inválido.");
+    return {
+      id: typeof row.id_aviso === "number" || typeof row.id_aviso === "string" ? row.id_aviso : String(row.codigo ?? "aviso"),
+      id_equipamento: typeof row.id_equipamento === "number" || typeof row.id_equipamento === "string" ? row.id_equipamento : "",
+      codigo: typeof row.codigo === "string" ? row.codigo : "aviso",
+      nivel: row.nivel === "critical" ? "critical" : "warning",
+      titulo: typeof row.titulo === "string" ? row.titulo : "Aviso do equipamento",
+      detalhe: typeof row.detalhe === "string" ? row.detalhe : "",
+      valor: typeof row.valor === "string" ? row.valor : "",
+      timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
+      reconhecido: row.reconhecido === true,
+    };
+  });
+}
+
+export async function acknowledgeAccountAlerts(alertIds: Array<number | string>): Promise<void> {
+  if (!alertIds.length) return;
+  const { error } = await getSupabaseClient()
+    .from("Avisos")
+    .update({ reconhecido: true })
+    .in("id_aviso", alertIds);
+  if (error) {
+    throw new Error(`Não foi possível reconhecer os avisos: ${error.message}`);
+  }
 }
 
 export async function fetchAccountTelemetry(

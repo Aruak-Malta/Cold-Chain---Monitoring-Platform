@@ -24,6 +24,8 @@ import {
   fetchAccountDashboard,
   fetchCompanyEquipments,
   fetchAccountTelemetry,
+  fetchAccountAlerts,
+  acknowledgeAccountAlerts,
   getSupabaseClient,
   subscribeToAccountTelemetry,
 } from "../../services/supabase";
@@ -37,6 +39,7 @@ import type {
   AccountTelemetryRecord,
 } from "../../services/supabase";
 import type { Equipment } from "../../types/Equipment";
+import type { Alert } from "../../types/Alert";
 import { AddEquipmentModal } from "../AddEquipmentModal/AddEquipmentModal";
 import { DetailDrawer } from "../DetailDrawer/DetailDrawer";
 import { Header } from "../Header/Header";
@@ -168,12 +171,16 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [accountLoading, setAccountLoading] = useState(mode === "account");
   const [accountLoadError, setAccountLoadError] = useState("");
+  const [accountAlerts, setAccountAlerts] = useState<Alert[]>([]);
   const accountUserId = useRef<string | null>(null);
   const equipmentDataRequestId = useRef(0);
   const telemetrySubscriptionRef = useRef<ReturnType<typeof subscribeToAccountTelemetry>>(null);
   const pendingAlertCount = equipmentLoadError
     ? 0
-    : getSessionAlerts(sessionEquipments).filter((alert) => !acknowledgedAlertIds.includes(alert.id)).length;
+    : [
+        ...getSessionAlerts(sessionEquipments).filter((alert) => !acknowledgedAlertIds.includes(alert.id)),
+        ...accountAlerts.filter((alert) => alert.state === "Pendente"),
+      ].length;
 
   async function loadScopeData(scope: SessionScope, companyId?: number | string) {
     const requestId = ++equipmentDataRequestId.current;
@@ -203,6 +210,38 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
         console.error("Erro ao carregar dados de telemetria do Supabase:", error);
         telemetryError = error;
       }
+    }
+
+    if (accountRecords?.length) {
+      try {
+        const storedAlerts = await fetchAccountAlerts(
+          accountRecords.map((equipment) => equipment.id_equipamento),
+        );
+        const equipmentById = new Map(
+          accountRecords.map((equipment) => [String(equipment.id_equipamento), equipment]),
+        );
+        setAccountAlerts(storedAlerts.map((alert) => {
+          const equipment = equipmentById.get(String(alert.id_equipamento));
+          return {
+            id: `supabase-${alert.id}`,
+            level: alert.nivel,
+            title: alert.titulo,
+            equipmentName: equipment?.nome ?? "Equipamento",
+            equipmentSerial: equipment?.serial ?? "",
+            detail: alert.detalhe,
+            value: alert.valor,
+            time: alert.timestamp
+              ? `Leitura registrada: ${new Date(alert.timestamp).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+              : "Horário não informado",
+            state: alert.reconhecido ? "Reconhecido" : "Pendente",
+            icon: "thermometer",
+          };
+        }));
+      } catch (error) {
+        console.error("Erro ao carregar avisos persistidos:", error);
+      }
+    } else {
+      setAccountAlerts([]);
     }
     setSessionEquipments(
       accountRecords
@@ -340,6 +379,21 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
   }
 
   function acknowledgeAlerts(ids: string[]): boolean {
+    const supabaseIds = ids
+      .filter((id) => id.startsWith("supabase-"))
+      .map((id) => id.slice("supabase-".length));
+    if (supabaseIds.length) {
+      void acknowledgeAccountAlerts(supabaseIds).then(() => {
+        setAccountAlerts((current) =>
+          current.map((alert) =>
+            ids.includes(alert.id) ? { ...alert, state: "Reconhecido" } : alert,
+          ),
+        );
+      }).catch((error: unknown) => {
+        console.error("Erro ao reconhecer avisos do Supabase:", error);
+        notify("Não foi possível reconhecer o aviso no servidor.");
+      });
+    }
     const nextIds = [...new Set([...acknowledgedAlertIds, ...ids])];
     setAcknowledgedAlertIds(nextIds);
     return saveAcknowledgedAlertIds(nextIds, sessionScope);
@@ -429,6 +483,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
               dashboardSummaryError,
               acknowledgedAlertIds,
               acknowledgeAlerts,
+              accountAlerts,
               openEquipment: setSelectedEquipment,
               openAddEquipment: () => setAddModalOpen(true),
               notify,

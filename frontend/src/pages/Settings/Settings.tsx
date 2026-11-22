@@ -1,10 +1,15 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
 import { Button } from "../../components/Button/Button";
 import { Icon } from "../../components/Icon/Icon";
 import { PageTitle } from "../../components/PageTitle/PageTitle";
 import { energyTariffStorageKey } from "../../services/reportService";
 import type { AppOutletContext } from "../../types/AppOutletContext";
+import {
+  fetchCompanyEquipmentLimits,
+  saveEquipmentLimits,
+} from "../../services/supabase";
+import type { AccountEquipmentLimit } from "../../services/supabase";
 
 const tabs = ["Limites e alertas", "Energia e tarifas", "Notificações", "Usuários e acesso", "Conectividade"];
 
@@ -18,11 +23,58 @@ function readEnergyTariff(): string {
 }
 
 export function Settings() {
-  const { notify } = useOutletContext<AppOutletContext>();
+  const { notify, selectedCompany, mode } = useOutletContext<AppOutletContext>();
   const [tab, setTab] = useState("Limites e alertas");
   const [energyTariff, setEnergyTariff] = useState(readEnergyTariff);
+  const [equipmentLimits, setEquipmentLimits] = useState<Array<AccountEquipmentLimit & { mac_address: string; nome_equipamento: string }>>([]);
+  const [selectedLimitId, setSelectedLimitId] = useState("");
+  const [temperatureMin, setTemperatureMin] = useState("-22");
+  const [temperatureMax, setTemperatureMax] = useState("12");
+  const [tolerance, setTolerance] = useState("5");
+  const [watchdog, setWatchdog] = useState("10");
+  const [loadingLimits, setLoadingLimits] = useState(false);
+
+  useEffect(() => {
+    if (mode !== "account" || !selectedCompany) {
+      setEquipmentLimits([]);
+      return;
+    }
+    setLoadingLimits(true);
+    void fetchCompanyEquipmentLimits(selectedCompany.id_company)
+      .then((limits) => {
+        setEquipmentLimits(limits);
+        const selected = limits[0];
+        if (selected) {
+          setSelectedLimitId(String(selected.id_equipamento));
+          setTemperatureMin(String(selected.temperatura_minima));
+          setTemperatureMax(String(selected.temperatura_maxima));
+          setTolerance(String(selected.tolerancia_minutos));
+          setWatchdog(String(selected.watchdog_minutos));
+        }
+      })
+      .catch((error: unknown) => {
+        console.error("Erro ao carregar limites:", error);
+        notify(error instanceof Error ? error.message : "Não foi possível carregar os limites.");
+      })
+      .finally(() => setLoadingLimits(false));
+  }, [mode, selectedCompany, notify]);
+
+  function selectEquipmentLimit(id: string) {
+    setSelectedLimitId(id);
+    const selected = equipmentLimits.find((limit) => String(limit.id_equipamento) === id);
+    if (selected) {
+      setTemperatureMin(String(selected.temperatura_minima));
+      setTemperatureMax(String(selected.temperatura_maxima));
+      setTolerance(String(selected.tolerancia_minutos));
+      setWatchdog(String(selected.watchdog_minutos));
+    }
+  }
 
   function saveSettings() {
+    if (tab === "Limites e alertas" && mode === "account") {
+      void saveTemperatureLimits();
+      return;
+    }
     if (tab === "Energia e tarifas") {
       const tariff = Number(energyTariff);
       if (!Number.isFinite(tariff) || tariff < 0) {
@@ -38,6 +90,41 @@ export function Settings() {
       }
     }
     notify("Configurações salvas com sucesso.");
+  }
+
+  async function saveTemperatureLimits() {
+    if (!selectedLimitId) {
+      notify("Selecione um equipamento antes de salvar os limites.");
+      return;
+    }
+    const minimum = Number(temperatureMin);
+    const maximum = Number(temperatureMax);
+    const toleranceMinutes = Number(tolerance);
+    const watchdogMinutes = Number(watchdog);
+    if (
+      !Number.isFinite(minimum) ||
+      !Number.isFinite(maximum) ||
+      minimum >= maximum ||
+      !Number.isInteger(toleranceMinutes) ||
+      toleranceMinutes < 0 ||
+      !Number.isInteger(watchdogMinutes) ||
+      watchdogMinutes < 1
+    ) {
+      notify("Informe limites térmicos válidos e tolerâncias em minutos.");
+      return;
+    }
+    try {
+      await saveEquipmentLimits(selectedLimitId, {
+        temperatura_minima: minimum,
+        temperatura_maxima: maximum,
+        tolerancia_minutos: toleranceMinutes,
+        watchdog_minutos: watchdogMinutes,
+      });
+      notify("Limites do equipamento salvos no Supabase.");
+    } catch (error) {
+      console.error("Erro ao salvar limites:", error);
+      notify(error instanceof Error ? error.message : "Não foi possível salvar os limites.");
+    }
   }
 
   return (
@@ -62,10 +149,25 @@ export function Settings() {
             <div><h2>{tab}</h2><p>Configure as regras aplicadas ao estabelecimento.</p></div>
           </div>
           {tab === "Limites e alertas" && <div className="form-grid">
-            <label>Temperatura mínima<input type="number" defaultValue="-22" /><small>Graus Celsius</small></label>
-            <label>Temperatura máxima<input type="number" defaultValue="-12" /><small>Graus Celsius</small></label>
-            <label>Tolerância antes do alerta<select defaultValue="5 minutos"><option>Imediato</option><option>5 minutos</option><option>10 minutos</option></select></label>
-            <label>Watchdog de inatividade<select defaultValue="10 minutos"><option>5 minutos</option><option>10 minutos</option><option>15 minutos</option></select></label>
+            {mode === "account" ? (
+              <label>
+                Equipamento
+                <select value={selectedLimitId} onChange={(event) => selectEquipmentLimit(event.target.value)} disabled={loadingLimits}>
+                  {!equipmentLimits.length && <option value="">Nenhum equipamento vinculado</option>}
+                  {equipmentLimits.map((limit) => (
+                    <option key={limit.id_equipamento} value={String(limit.id_equipamento)}>
+                      {limit.nome_equipamento} · {limit.mac_address}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label>Equipamento<select disabled><option>Somente no painel da conta</option></select></label>
+            )}
+            <label>Temperatura mínima<input type="number" value={temperatureMin} onChange={(event) => setTemperatureMin(event.target.value)} /><small>Graus Celsius</small></label>
+            <label>Temperatura máxima<input type="number" value={temperatureMax} onChange={(event) => setTemperatureMax(event.target.value)} /><small>Graus Celsius</small></label>
+            <label>Tolerância antes do alerta<select value={tolerance} onChange={(event) => setTolerance(event.target.value)}><option value="0">Imediato</option><option value="5">5 minutos</option><option value="10">10 minutos</option></select></label>
+            <label>Watchdog de inatividade<select value={watchdog} onChange={(event) => setWatchdog(event.target.value)}><option value="5">5 minutos</option><option value="10">10 minutos</option><option value="15">15 minutos</option></select></label>
           </div>}
           {tab === "Energia e tarifas" && <div className="form-grid">
             <label>Tarifa de energia<input type="number" value={energyTariff} onChange={(event) => setEnergyTariff(event.target.value)} step="0.01" min="0" /><small>R$/kWh</small></label>

@@ -27,6 +27,9 @@ frontend_index = frontend_dir / "index.html"
 class SolicitacaoAnalise(BaseModel):
     serial: str = Field(min_length=1)
 
+class SolicitacaoAnaliseDados(BaseModel):
+    leituras: list[dict[str, object]] = Field(min_length=1, max_length=1000)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("FRONTEND_ORIGIN", "http://localhost:5173").rstrip("/")],
@@ -222,6 +225,15 @@ async def obter_resumo(
                 round(sum(temperaturas) / len(temperaturas), 2) if temperaturas else None
             ),
         }
+    }
+
+
+@app.post("/analise-dados")
+async def executar_analise_dados(solicitacao: SolicitacaoAnaliseDados):
+    df = pd.DataFrame(solicitacao.leituras)
+    return {
+        "telemetria": processar_telemetria_basica(df),
+        "analise_avancada": analisar_registros(solicitacao.leituras),
     }
 
 

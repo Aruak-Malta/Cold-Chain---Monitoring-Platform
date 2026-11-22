@@ -16,7 +16,7 @@ function getSessionIdStorageKey(scope: SessionScope): string {
   return scope === "demo" ? sessionIdKey : `${sessionIdKey}-${scope}`;
 }
 
-type TelemetryAnalysisResponse = {
+export type TelemetryAnalysisResponse = {
   resumo_analise: {
     temperatura_media: number | null;
     umidade_media?: number | null;
@@ -341,6 +341,34 @@ export async function fetchSessionDashboardSummary(
     riscos_criticos: summary.riscos_criticos,
     duty_cycle_medio: summary.duty_cycle_medio,
     temperatura_media: summary.temperatura_media,
+  };
+}
+
+export async function analyzeAccountTelemetry(
+  readings: Array<Record<string, unknown>>,
+): Promise<{
+  telemetria: TelemetryAnalysisResponse;
+  analise_avancada: AdvancedAnalysis;
+}> {
+  const response = await fetch(`${apiUrl}/analise-dados`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ leituras: readings }),
+  });
+  if (!response.ok) {
+    throw new Error(`Não foi possível analisar os dados do sensor (erro ${response.status}).`);
+  }
+  const body: unknown = await response.json();
+  if (
+    !isRecord(body) ||
+    !isTelemetryAnalysis(body.telemetria) ||
+    !isAdvancedAnalysis(body.analise_avancada)
+  ) {
+    throw new Error("O servidor retornou uma análise de sensor inválida.");
+  }
+  return {
+    telemetria: body.telemetria,
+    analise_avancada: body.analise_avancada,
   };
 }
 

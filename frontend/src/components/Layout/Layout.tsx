@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { navigationItems } from "../../data/navigation";
 import {
+  analyzeAccountTelemetry,
   fetchSessionDashboardSummary,
   fetchSessionEquipments,
   getEquipmentStorageKey,
@@ -32,7 +33,9 @@ import {
 import type {
   SessionDashboardSummary,
   SessionEquipmentRecord,
+  TelemetryAnalysisResponse,
 } from "../../services/sessionEquipmentService";
+import type { AdvancedAnalysis } from "../../types/Equipment";
 import type {
   AccountDashboard,
   AccountEquipmentRecord,
@@ -126,6 +129,7 @@ function mergeAccountEquipments(
   accountEquipments: AccountEquipmentRecord[],
   sessionEquipments: SessionEquipmentRecord[],
   telemetryReadings: AccountTelemetryRecord[] = [],
+  accountAnalyses: Map<string, { telemetria: TelemetryAnalysisResponse; analise_avancada: AdvancedAnalysis }> = new Map(),
 ): SessionEquipmentRecord[] {
   const sessionBySerial = new Map(
     sessionEquipments.map((equipment) => [equipment.serial.trim().toLowerCase(), equipment]),
@@ -134,13 +138,14 @@ function mergeAccountEquipments(
   return accountEquipments.map((equipment) => {
     const sessionEquipment = sessionBySerial.get(equipment.serial.trim().toLowerCase());
     const accountTelemetry = buildAccountTelemetry(equipment.id_equipamento, telemetryReadings);
+    const accountAnalysis = accountAnalyses.get(String(equipment.id_equipamento));
     return {
       nome: equipment.nome,
       serial: equipment.serial,
       setor: equipment.setor ?? undefined,
       tensao: equipment.tensao ?? undefined,
-      telemetria: accountTelemetry ?? sessionEquipment?.telemetria ?? null,
-      analise_avancada: sessionEquipment?.analise_avancada ?? null,
+      telemetria: accountAnalysis?.telemetria ?? accountTelemetry ?? sessionEquipment?.telemetria ?? null,
+      analise_avancada: accountAnalysis?.analise_avancada ?? sessionEquipment?.analise_avancada ?? null,
     };
   });
 }
@@ -212,6 +217,33 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
       }
     }
 
+    const accountAnalyses = new Map<string, {
+      telemetria: TelemetryAnalysisResponse;
+      analise_avancada: AdvancedAnalysis;
+    }>();
+    if (accountRecords?.length) {
+      await Promise.all(accountRecords.map(async (equipment) => {
+        const readings = telemetryReadings
+          .filter((reading) => String(reading.id_equipamento) === String(equipment.id_equipamento))
+          .map((reading) => ({
+            timestamp: reading.timestamp,
+            temperatura: reading.temperature,
+            umidade: reading.humidity,
+            corrente: reading.current,
+          }));
+        const validReadings = readings.filter((reading) =>
+          reading.temperatura !== null || reading.umidade !== null || reading.corrente !== null,
+        );
+        if (!validReadings.length) return;
+        try {
+          const result = await analyzeAccountTelemetry(validReadings);
+          accountAnalyses.set(String(equipment.id_equipamento), result);
+        } catch (error) {
+          console.error(`Erro ao analisar dados do equipamento ${equipment.nome}:`, error);
+        }
+      }));
+    }
+
     if (accountRecords?.length) {
       try {
         const storedAlerts = await fetchAccountAlerts(
@@ -245,7 +277,7 @@ export function Layout({ mode = "demo" }: Readonly<LayoutProps>) {
     }
     setSessionEquipments(
       accountRecords
-        ? mergeAccountEquipments(accountRecords, sessionRecords, telemetryReadings)
+        ? mergeAccountEquipments(accountRecords, sessionRecords, telemetryReadings, accountAnalyses)
         : sessionRecords,
     );
 

@@ -14,20 +14,30 @@ const reportTemplates: {
   icon: IconName;
   kind: ReportKind;
 }[] = [
-  { title: "Relatório de gestão mensal", description: "Consumo, custos, alertas e Health Score.", icon: "file", kind: "management" },
+  { title: "Relatório de gestão mensal", description: "Temperatura, umidade, alertas e Health Score.", icon: "file", kind: "management" },
   { title: "Auditoria de alertas", description: "Log inalterável com usuários e reconhecimentos.", icon: "bell", kind: "alerts" },
-  { title: "Eficiência energética", description: "Ranking, projeções e oportunidades de economia.", icon: "bolt", kind: "energy" },
+  { title: "Indicadores disponíveis", description: "Relatórios térmicos; dados elétricos ficam disponíveis quando o sensor os enviar.", icon: "bolt", kind: "energy" },
   { title: "Dados brutos de telemetria", description: "Leituras sincronizadas para análise externa.", icon: "chart", kind: "telemetry" },
 ];
 
 export function Reports() {
-  const { sessionScope, notify } = useOutletContext<AppOutletContext>();
+  const {
+    mode,
+    sessionScope,
+    sessionEquipments,
+    accountAlerts,
+    notify,
+  } = useOutletContext<AppOutletContext>();
   const [currentMonth, previousMonth] = getReportMonthOptions();
   const [period, setPeriod] = useState(currentMonth);
 
   async function generateReport(name: string, kind: ReportKind) {
     try {
-      await exportReport(name, period, kind, sessionScope);
+      await exportReport(name, period, kind, sessionScope, {
+        mode,
+        equipments: sessionEquipments,
+        accountAlerts,
+      });
       notify(`${name} exportado em ${kind === "telemetry" ? "CSV" : "PDF"}.`);
     } catch (error) {
       console.error(`Não foi possível gerar ${name}:`, error);

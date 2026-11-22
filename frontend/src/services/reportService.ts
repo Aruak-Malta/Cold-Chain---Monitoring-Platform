@@ -3,9 +3,18 @@ import {
   type SessionReportEquipmentRecord,
   type SessionScope,
 } from "./sessionEquipmentService";
+import type { SessionEquipmentRecord } from "./sessionEquipmentService";
+import type { SessionMode } from "./sessionEquipmentService";
+import type { Alert } from "../types/Alert";
 import { getSessionAlerts, readAcknowledgedAlertIds } from "./sessionAlertService";
 
 export type ReportKind = "consolidated" | "management" | "alerts" | "energy" | "telemetry";
+
+export type ReportExportContext = {
+  mode: SessionMode;
+  equipments: SessionEquipmentRecord[];
+  accountAlerts: Alert[];
+};
 
 export const energyTariffStorageKey = "cold-chain-energy-tariff";
 
@@ -229,8 +238,8 @@ function getManagementLines(
 
   const lines = [
     "Resumo operacional",
-    "As leituras ambientais respeitam o período selecionado; análises avançadas consideram o JSON completo.",
-    "Consumo estimado por integração trapezoidal da corrente entre timestamps válidos (220 V, fator de potência 0,85).",
+    "As leituras ambientais respeitam o período selecionado; análises avançadas consideram o histórico disponível.",
+    "Consumo elétrico fica indisponível até o sensor fornecer valores válidos de corrente.",
     `Equipamentos cadastrados: ${equipments.length} · com telemetria: ${equipments.filter((equipment) => equipment.leituras.length > 0).length} · com análise de saúde: ${healthScores.length}`,
     `Total de leituras: ${filtered.readings.length}`,
     `Alertas calculados: ${alerts.length} · críticos: ${criticalAlerts} · atenção: ${alerts.length - criticalAlerts}`,
@@ -269,12 +278,24 @@ function getManagementLines(
 function getAlertLines(
   equipments: SessionReportEquipmentRecord[],
   scope: SessionScope,
+  accountAlerts: Alert[] = [],
 ): string[] {
   const acknowledgedIds = new Set(readAcknowledgedAlertIds(scope));
-  const alerts = getSessionAlerts(equipments);
+  const sessionAlerts = getSessionAlerts(equipments);
+  const alerts = [
+    ...sessionAlerts,
+    ...accountAlerts.map((alert) => ({
+      level: alert.level,
+      title: alert.title,
+      equipmentName: alert.equipmentName,
+      equipmentSerial: alert.equipmentSerial,
+      detail: alert.detail,
+      id: alert.id,
+    })),
+  ];
   const lines = [
     "Auditoria de alertas",
-    "Os alertas refletem as análises do conjunto completo de JSONs enviados, não somente o período selecionado.",
+    "Os alertas refletem as leituras e os limites disponíveis no período atual.",
     "Identidade do usuário não registrada; reconhecimentos são locais nesta aba, sem log imutável.",
     `Alertas encontrados: ${alerts.length}`,
     "",
@@ -285,11 +306,15 @@ function getAlertLines(
   }
 
   for (const alert of alerts) {
+    const accountAlert = accountAlerts.find((item) => item.id === alert.id);
+    const acknowledged = accountAlert
+      ? accountAlert.state === "Reconhecido"
+      : acknowledgedIds.has(alert.id);
     lines.push(
       `${alert.level === "critical" ? "Crítico" : "Atenção"} · ${alert.title}`,
       `Equipamento: ${alert.equipmentName} (MAC Address ${alert.equipmentSerial})`,
       `Detalhe: ${alert.detail}`,
-      `Reconhecimento nesta aba: ${acknowledgedIds.has(alert.id) ? "Sim" : "Não"}`,
+      `Reconhecimento: ${acknowledged ? "Sim" : "Não"}`,
       "",
     );
   }
@@ -301,9 +326,9 @@ function getEnergyLines(
   filtered: FilteredReportData,
 ): string[] {
   const lines = [
-    "Eficiência energética",
-    "Ranking por duty cycle calculado sobre o conjunto completo de telemetria enviada.",
-    "Consumo e custo são estimativas por integração da corrente entre timestamps (220 V, fator de potência 0,85).",
+    "Indicadores disponíveis",
+    "Os indicadores elétricos dependem de leituras de corrente válidas.",
+    "Enquanto não houver corrente, consumo, custo e duty cycle ficam indisponíveis.",
     `Tarifa aplicada: R$ ${formatNumber(readEnergyTariff(), 2)}/kWh.`,
     "",
   ];
@@ -314,7 +339,7 @@ function getEnergyLines(
     })
     .sort((left, right) => (right.energyKwh ?? -1) - (left.energyKwh ?? -1));
 
-  if (!ranked.length) {
+  if (!ranked.length || ranked.every(({ energyKwh }) => energyKwh === null)) {
     lines.push("Não há leituras com corrente e timestamps válidos suficientes para estimar o consumo.");
     return lines;
   }
@@ -403,8 +428,36 @@ export async function exportReport(
   period: string,
   kind: ReportKind,
   scope: SessionScope = "demo",
+  context?: ReportExportContext,
 ): Promise<void> {
-  const equipments = await fetchSessionReportData(scope);
+  let equipments: SessionReportEquipmentRecord[];
+  if (context?.mode === "account") {
+    equipments = context.equipments.map((equipment) => {
+      const chart = equipment.telemetria?.dados_graficos;
+      const times = chart?.tempos ?? [];
+      const temperatures = chart?.temperaturas ?? [];
+      const humidities = chart?.umidades ?? [];
+      const currents = chart?.correntes ?? [];
+      const count = Math.max(times.length, temperatures.length, humidities.length, currents.length);
+      const leituras = Array.from({ length: count }, (_, index) => ({
+        timestamp: times[index] ?? null,
+        temperatura: temperatures[index] ?? null,
+        umidade: humidities[index] ?? null,
+        corrente: currents[index] ?? null,
+      })).filter((reading) =>
+        reading.timestamp !== null ||
+        reading.temperatura !== null ||
+        reading.umidade !== null ||
+        reading.corrente !== null,
+      );
+      return {
+        ...equipment,
+        leituras,
+      };
+    });
+  } else {
+    equipments = await fetchSessionReportData(scope);
+  }
   const filtered = filterReportData(equipments, period);
 
   if (kind === "telemetry") {
@@ -418,7 +471,7 @@ export async function exportReport(
     lines.push(...getManagementLines(equipments, filtered));
   }
   if (kind === "alerts" || kind === "consolidated") {
-    lines.push(...getAlertLines(equipments, scope));
+    lines.push(...getAlertLines(equipments, scope, context?.accountAlerts));
   }
   if (kind === "energy" || kind === "consolidated") {
     lines.push(...getEnergyLines(equipments, filtered));

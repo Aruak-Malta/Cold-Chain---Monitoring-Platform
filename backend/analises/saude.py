@@ -2,11 +2,11 @@ def calcular_health_score(dados_termicos: dict, dados_eletricos: dict) -> dict:
     score = 100
     deducoes_motivo = []
 
-    if not dados_termicos or not dados_eletricos:
+    if not dados_termicos:
         return {
             "health_score": None,
             "status_geral": "Indisponível",
-            "fatores_de_risco": ["Dados insuficientes para análise térmica e elétrica."],
+            "fatores_de_risco": ["Dados insuficientes para análise térmica."],
         }
 
     # --- Punições Térmicas ---
@@ -28,26 +28,8 @@ def calcular_health_score(dados_termicos: dict, dados_eletricos: dict) -> dict:
         if risco_termico > 10:
             deducoes_motivo.append(f"Exposição: Passou {risco_termico}% do tempo em risco térmico.")
 
-    # --- Punições Elétricas (Motor) ---
-    if dados_eletricos.get("alerta_compressor_travando"):
-        score -= 40
-        deducoes_motivo.append("Alerta Crítico: Compressor com alta resistência/travando.")
-
-    if dados_eletricos.get("alerta_corrente_alta_sustentada"):
-        score -= 20
-        deducoes_motivo.append("Corrente acima do padrão de operação por período prolongado.")
-
-    if dados_eletricos.get("alerta_refrigeracao_ineficiente"):
-        score -= 20
-        deducoes_motivo.append("Temperatura sem resposta clara durante corrente elevada.")
-        
-    duty_cycle = dados_eletricos.get("duty_cycle_percentual", 0)
-    if duty_cycle > 75:
-        score -= 20
-        deducoes_motivo.append(f"Sobrecarga térmica: Compressor operando {duty_cycle}% do tempo.")
-    elif duty_cycle < 10:
-        score -= 10
-        deducoes_motivo.append("Subutilização extrema ou termostato defeituoso.")
+    # Dados elétricos podem complementar o Health Score no futuro,
+    # mas não tornam a análise térmica indisponível quando estiverem ausentes.
 
     # Garante que a nota fica entre 0 e 100
     score = max(0, min(100, score))

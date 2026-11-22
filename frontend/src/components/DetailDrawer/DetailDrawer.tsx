@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import type { Equipment } from "../../types/Equipment";
 import { Button } from "../Button/Button";
 import { Icon } from "../Icon/Icon";
@@ -139,6 +140,8 @@ function buildChartSeries(
 }
 
 export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [period, setPeriod] = useState("24h");
   const [selectedMetric, setSelectedMetric] = useState<ChartMetricKey>("temperatura");
   const [hoveredPoint, setHoveredPoint] = useState<HoveredChartPoint | null>(null);
@@ -505,7 +508,17 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             </ul>
           </div>
         )}
-        <Button variant="primary" className="full-button">
+        <Button
+          variant="primary"
+          className="full-button"
+          onClick={() => {
+            const basePath = location.pathname.startsWith("/demo") ? "/demo" : "/app";
+            navigate(`${basePath}/analises`, {
+              state: { selectedSerial: equipment.serial },
+            });
+            onClose();
+          }}
+        >
           Abrir análise completa <Icon name="arrow" />
         </Button>
       </aside>

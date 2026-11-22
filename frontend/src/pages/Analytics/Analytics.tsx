@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useOutletContext } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useOutletContext } from "react-router-dom";
 import { Icon } from "../../components/Icon/Icon";
 import { PageTitle } from "../../components/PageTitle/PageTitle";
 import { toEquipment } from "../../services/sessionEquipmentService";
@@ -251,11 +251,19 @@ function HealthReport({ equipment }: Readonly<{ equipment: SessionEquipmentRecor
 }
 
 export function Analytics() {
+  const location = useLocation();
+  const routeState = location.state as { selectedSerial?: string } | null;
   const { sessionEquipments, equipmentLoadError, dashboardSummary, dashboardSummaryError, openEquipment } =
     useOutletContext<AppOutletContext>();
   const [metric, setMetric] = useState<ComparisonMetric>("health");
-  const [selectedSerial, setSelectedSerial] = useState("");
+  const [selectedSerial, setSelectedSerial] = useState(routeState?.selectedSerial ?? "");
   const [diagnostic, setDiagnostic] = useState<Diagnostic>("temperature");
+
+  useEffect(() => {
+    if (routeState?.selectedSerial) {
+      setSelectedSerial(routeState.selectedSerial);
+    }
+  }, [routeState?.selectedSerial]);
 
   const selected = sessionEquipments.find((equipment) => equipment.serial === selectedSerial) ?? sessionEquipments[0];
   const comparableEquipments = useMemo(

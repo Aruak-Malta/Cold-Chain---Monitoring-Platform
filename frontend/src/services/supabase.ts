@@ -349,22 +349,52 @@ export async function fetchAccountTelemetry(
   if (!equipmentIds.length) {
     return [];
   }
+  const client = getSupabaseClient();
+  const grouped = await Promise.all(
+    equipmentIds.map(async (equipmentId) => {
+      const { data, error } = await client
+        .from("Data")
+        .select("*")
+        .eq("id_equipamento", equipmentId)
+        .limit(1000);
 
-  const { data, error } = await getSupabaseClient()
-    .from("Data")
-    .select("*")
-    .in("id_equipamento", equipmentIds)
-    .limit(1000);
+      if (error) {
+        throw new Error(`Não foi possível carregar os dados do sensor: ${error.message}`);
+      }
+      if (!Array.isArray(data)) {
+        throw new Error("O Supabase retornou dados de telemetria inválidos.");
+      }
+      return data;
+    }),
+  );
 
-  if (error) {
-    throw new Error(`Não foi possível carregar os dados do sensor: ${error.message}`);
+  const data = grouped.flat();
+  if (!data.length) {
+    const { data: fallbackData, error: fallbackError } = await client
+      .from("Data")
+      .select("*")
+      .limit(1000);
+    if (fallbackError) {
+      throw new Error(`Não foi possível carregar os dados do sensor: ${fallbackError.message}`);
+    }
+    if (Array.isArray(fallbackData)) {
+      const acceptedIds = new Set(equipmentIds.map((id) => String(id)));
+      data.push(
+        ...fallbackData.filter((row) =>
+          isRecord(row) &&
+          (typeof row.id_equipamento === "number" ||
+            typeof row.id_equipamento === "string") &&
+          acceptedIds.has(String(row.id_equipamento)),
+        ),
+      );
+    }
   }
-  if (!Array.isArray(data)) {
-    throw new Error("O Supabase retornou dados de telemetria inválidos.");
-  }
-
   return data.map((row) => {
-    if (!isRecord(row) || (typeof row.id_equipamento !== "number" && typeof row.id_equipamento !== "string")) {
+    if (
+      !isRecord(row) ||
+      (typeof row.id_equipamento !== "number" &&
+        typeof row.id_equipamento !== "string")
+    ) {
       throw new Error("O Supabase retornou uma leitura com equipamento inválido.");
     }
     return {

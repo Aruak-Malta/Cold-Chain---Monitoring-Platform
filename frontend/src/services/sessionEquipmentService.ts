@@ -403,7 +403,7 @@ export function toEquipment(record: SessionEquipmentRecord, index: number): Equi
     humidityLabel: telemetry ? "Umidade média" : "Umidade",
     currentLabel: telemetry ? "Corrente máx." : "Corrente",
     trendMessage: telemetry
-      ? `${telemetry.resumo_analise.total_leituras} leituras no arquivo`
+      ? `${telemetry.resumo_analise.total_leituras} leituras do sensor`
       : "Aguardando primeira leitura",
     telemetry: telemetry
       ? {

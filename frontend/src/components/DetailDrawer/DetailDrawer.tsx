@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { Equipment } from "../../types/Equipment";
 import { Button } from "../Button/Button";
 import { Icon } from "../Icon/Icon";
@@ -143,7 +143,60 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
   const [selectedMetric, setSelectedMetric] = useState<ChartMetricKey>("temperatura");
   const [hoveredPoint, setHoveredPoint] = useState<HoveredChartPoint | null>(null);
   const hasSessionRecord = equipment.serial !== undefined;
-  const telemetry = equipment.telemetry;
+  const hasSupabaseTelemetry = equipment.telemetry?.readingCount
+    ? equipment.telemetry.readingCount > 0
+    : false;
+  const sourceTelemetry = equipment.telemetry;
+  const telemetry = useMemo(() => {
+    if (!sourceTelemetry) return null;
+    const periodHours = period === "1h" ? 1 : period === "24h" ? 24 : 168;
+    const validDates = sourceTelemetry.times
+      .map((time) => time ? new Date(time) : null)
+      .filter((date): date is Date => date !== null && Number.isFinite(date.getTime()));
+    if (!validDates.length) return sourceTelemetry;
+
+    const latest = new Date(Math.max(...validDates.map((date) => date.getTime())));
+    const cutoff = latest.getTime() - periodHours * 60 * 60 * 1000;
+    const keep = sourceTelemetry.times.map((time) => {
+      if (!time) return false;
+      const date = new Date(time);
+      return Number.isFinite(date.getTime()) && date.getTime() >= cutoff;
+    });
+    if (keep.every((keepReading) => !keepReading)) return sourceTelemetry;
+
+    const filterValues = (values: (number | null)[]) =>
+      values.filter((_, index) => keep[index]);
+    const temperatures = filterValues(sourceTelemetry.temperatures);
+    const temperaturesSmoothed = filterValues(sourceTelemetry.temperaturesSmoothed);
+    const humidities = filterValues(sourceTelemetry.humidities);
+    const humiditiesSmoothed = filterValues(sourceTelemetry.humiditiesSmoothed);
+    const currents = filterValues(sourceTelemetry.currents);
+    const currentsSmoothed = filterValues(sourceTelemetry.currentsSmoothed);
+    const times = sourceTelemetry.times.filter((_, index) => keep[index]);
+    const average = (values: (number | null)[]) => {
+      const valid = values.filter((value): value is number => value !== null && Number.isFinite(value));
+      return valid.length ? valid.reduce((sum, value) => sum + value, 0) / valid.length : null;
+    };
+
+    const validCurrents = currents.filter(
+      (value): value is number => value !== null && Number.isFinite(value),
+    );
+
+    return {
+      ...sourceTelemetry,
+      readingCount: times.length,
+      times,
+      temperatureAverage: average(temperatures),
+      humidityAverage: average(humidities),
+      currentMaximum: validCurrents.length ? Math.max(...validCurrents) : null,
+      temperatures,
+      temperaturesSmoothed,
+      humidities,
+      humiditiesSmoothed,
+      currents,
+      currentsSmoothed,
+    };
+  }, [sourceTelemetry, period]);
   const chartSeries = telemetry
     ? [
         buildChartSeries(chartMetrics[0], telemetry.temperaturesSmoothed),
@@ -212,7 +265,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             <small>{equipment.health === null ? "" : "/100"}</small>
           </span>
           <div>
-            <small>{hasSessionRecord ? "RESUMO DO ARQUIVO" : "HEALTH SCORE"}</small>
+            <small>{hasSupabaseTelemetry ? "RESUMO DAS LEITURAS" : hasSessionRecord ? "RESUMO DO ARQUIVO" : "HEALTH SCORE"}</small>
             <strong>
               {hasSessionRecord
                 ? telemetry
@@ -228,7 +281,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             <h3>Telemetria</h3>
             <p>
               {telemetry
-                ? `Histórico do JSON · ${telemetry.readingCount} leituras`
+                ? `Histórico do sensor · ${telemetry.readingCount} leituras`
                 : hasSessionRecord
                   ? "Aguardando dados do equipamento"
                   : "Atualização em tempo real"}
@@ -278,12 +331,12 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
           {hasSessionRecord && !telemetry ? (
             <div className="telemetry-empty">
               <strong>Nenhuma telemetria disponível</strong>
-              <span>Envie um JSON com leituras para visualizar o histórico.</span>
+              <span>Aguarde o sensor enviar novas leituras para visualizar o histórico.</span>
             </div>
           ) : hasSessionRecord && !availableSeries.length ? (
             <div className="telemetry-empty">
               <strong>Sem leituras numéricas para exibir</strong>
-              <span>O arquivo não contém valores numéricos de temperatura, umidade ou corrente.</span>
+              <span>O dispositivo ainda não enviou valores numéricos de temperatura, umidade ou corrente.</span>
             </div>
           ) : (
             <>
@@ -302,7 +355,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                 viewBox="0 0 560 210"
                 preserveAspectRatio="none"
                 role={telemetry ? "img" : undefined}
-                aria-label={telemetry ? "Histórico de temperatura, umidade e corrente do arquivo JSON" : undefined}
+                aria-label={telemetry ? "Histórico de temperatura, umidade e corrente do sensor" : undefined}
                 onPointerMove={(event) => {
                   if (!activeSeries) return;
                   const bounds = event.currentTarget.getBoundingClientRect();
@@ -402,13 +455,13 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
             <span className="metric-icon"><Icon name={hasSessionRecord ? "drop" : "bolt"} /></span>
             <small>{hasSessionRecord ? "Umidade média" : "Consumo mensal"}</small>
             <strong>{hasSessionRecord ? formatMetric(telemetry?.humidityAverage, "%") : "486,2 kWh"}</strong>
-            <p>{hasSessionRecord ? "Média das leituras do JSON" : "+18% vs. mês anterior"}</p>
+            <p>{hasSessionRecord ? "Média das leituras do sensor" : "+18% vs. mês anterior"}</p>
           </div>
           <div>
             <span className="metric-icon"><Icon name={hasSessionRecord ? "bolt" : "clock"} /></span>
             <small>{hasSessionRecord ? "Corrente máxima" : "Duty cycle"}</small>
             <strong>{hasSessionRecord ? formatMetric(telemetry?.currentMaximum, " A") : "82%"}</strong>
-            <p>{hasSessionRecord ? "Maior valor do arquivo" : "Acima do ideal de 65%"}</p>
+            <p>{hasSessionRecord ? "Maior valor registrado" : "Acima do ideal de 65%"}</p>
           </div>
         </div>
         {equipment.analysis && (
@@ -418,7 +471,7 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
                 <h3>Análise avançada</h3>
                 <p>
                   {equipment.analysis.termica?.base_temporal === "timestamps"
-                    ? "Cálculos ponderados pelos timestamps do JSON"
+                    ? "Cálculos ponderados pelos timestamps das leituras"
                     : "Cálculos baseados na sequência de leituras"}
                 </p>
               </div>

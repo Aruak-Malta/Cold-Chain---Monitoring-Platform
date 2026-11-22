@@ -41,7 +41,7 @@ function formatTimestamp(values: (string | null)[]): string {
     .map((value) => value ? new Date(value) : null)
     .filter((date): date is Date => date !== null && Number.isFinite(date.getTime()))
     .sort((left, right) => right.getTime() - left.getTime())[0];
-  if (!latestTimestamp) return "Horário não informado no JSON";
+  if (!latestTimestamp) return "Horário não informado pelo sensor";
   return `Leitura mais recente: ${latestTimestamp.toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",

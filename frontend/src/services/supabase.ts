@@ -212,9 +212,9 @@ export async function fetchAccountTelemetry(
 
   const { data, error } = await getSupabaseClient()
     .from("Data")
-    .select("id_data, id_equipamento, temperatura_float, umidade_float, corrente_float, timestamp")
+    .select("*")
     .in("id_equipamento", equipmentIds)
-    .order("timestamp", { ascending: false })
+    .limit(1000);
 
   if (error) {
     throw new Error(`Não foi possível carregar os dados do sensor: ${error.message}`);
@@ -229,12 +229,31 @@ export async function fetchAccountTelemetry(
     }
     return {
       id_equipamento: row.id_equipamento,
-      temperature: toNullableFiniteNumber(row.temperatura_float),
-      humidity: toNullableFiniteNumber(row.umidade_float),
-      current: toNullableFiniteNumber(row.corrente_float),
-      timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
+      temperature: readNumericField(row, ["temperatura_float", "temperatura", "temperature"]),
+      humidity: readNumericField(row, ["umidade_float", "umidade", "humidity"]),
+      current: readNumericField(row, ["corrente_float", "corrente", "current"]),
+      timestamp: readTimestampField(row),
     };
   });
+}
+
+function readNumericField(row: Record<string, unknown>, candidates: string[]): number | null {
+  for (const candidate of candidates) {
+    const value = toNullableFiniteNumber(row[candidate]);
+    if (value !== null) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function readTimestampField(row: Record<string, unknown>): string | null {
+  for (const candidate of ["timestamp", "created_at", "time", "data_hora"]) {
+    if (typeof row[candidate] === "string") {
+      return row[candidate];
+    }
+  }
+  return null;
 }
 
 export function subscribeToAccountTelemetry(

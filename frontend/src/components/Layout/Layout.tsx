@@ -139,7 +139,7 @@ function mergeAccountEquipments(
       serial: equipment.serial,
       setor: equipment.setor ?? undefined,
       tensao: equipment.tensao ?? undefined,
-      telemetria: sessionEquipment?.telemetria ?? accountTelemetry,
+      telemetria: accountTelemetry ?? sessionEquipment?.telemetria ?? null,
       analise_avancada: sessionEquipment?.analise_avancada ?? null,
     };
   });

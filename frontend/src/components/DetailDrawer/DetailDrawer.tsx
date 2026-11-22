@@ -263,9 +263,9 @@ export function DetailDrawer({ equipment, onClose }: Readonly<DetailDrawerProps>
           </Button>
         </div>
         <div className="drawer-score">
-          <span className="score-ring">
-            {equipment.health ?? "—"}
-            <small>{equipment.health === null ? "" : "/100"}</small>
+          <span className={`score-ring ${equipment.health === null ? "score-unavailable" : equipment.health < 70 ? "score-low" : equipment.health < 85 ? "score-warning" : ""}`}>
+            <strong>{equipment.health ?? "—"}</strong>
+            {equipment.health !== null && <small>/100</small>}
           </span>
           <div>
             <small>{hasSupabaseTelemetry ? "RESUMO DAS LEITURAS" : hasSessionRecord ? "RESUMO DO ARQUIVO" : "HEALTH SCORE"}</small>

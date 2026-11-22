@@ -1482,22 +1482,47 @@ button {
 }
 
 .score-ring {
+  position: relative;
   display: grid;
+  flex: 0 0 66px;
   width: 66px;
   height: 66px;
   place-items: center;
   border: 6px solid #e5a047;
   border-radius: 50%;
+  color: #243b40;
   font-family: "Manrope", sans-serif;
+  text-align: center;
+}
+
+.score-ring strong {
   font-size: 20px;
   font-weight: 800;
+  line-height: 1;
+  margin: 0 0 7px;
 }
 
 .score-ring small {
-  margin-left: -19px;
-  margin-top: 28px;
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
   color: #96a4a8;
   font-size: 7px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.score-ring.score-low {
+  border-color: #d97070;
+}
+
+.score-ring.score-warning {
+  border-color: #e5a047;
+}
+
+.score-ring.score-unavailable {
+  border-color: #ccd7d8;
 }
 
 .telemetry-empty {

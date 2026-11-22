@@ -354,8 +354,9 @@ export async function fetchAccountTelemetry(
     equipmentIds.map(async (equipmentId) => {
       const { data, error } = await client
         .from("Data")
-        .select("*")
+        .select("id_data, id_equipamento, corrente, temperatura, umidade, timestamp")
         .eq("id_equipamento", equipmentId)
+        .order("timestamp", { ascending: true })
         .limit(1000);
 
       if (error) {
@@ -363,6 +364,11 @@ export async function fetchAccountTelemetry(
       }
       if (!Array.isArray(data)) {
         throw new Error("O Supabase retornou dados de telemetria inválidos.");
+      }
+      if (import.meta.env.DEV) {
+        console.debug(
+          `[telemetria] equipamento=${equipmentId} leituras=${data.length}`,
+        );
       }
       return data;
     }),
@@ -372,7 +378,7 @@ export async function fetchAccountTelemetry(
   if (!data.length) {
     const { data: fallbackData, error: fallbackError } = await client
       .from("Data")
-      .select("*")
+      .select("id_data, id_equipamento, corrente, temperatura, umidade, timestamp")
       .limit(1000);
     if (fallbackError) {
       throw new Error(`Não foi possível carregar os dados do sensor: ${fallbackError.message}`);
@@ -399,10 +405,10 @@ export async function fetchAccountTelemetry(
     }
     return {
       id_equipamento: row.id_equipamento,
-      temperature: readNumericField(row, ["temperatura_float", "temperatura", "temperature"]),
-      humidity: readNumericField(row, ["umidade_float", "umidade", "humidity"]),
-      current: readNumericField(row, ["corrente_float", "corrente", "current"]),
-      timestamp: readTimestampField(row),
+      temperature: toNullableFiniteNumber(row.temperatura),
+      humidity: toNullableFiniteNumber(row.umidade),
+      current: toNullableFiniteNumber(row.corrente),
+      timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
     };
   });
 }

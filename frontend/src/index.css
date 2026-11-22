@@ -1559,6 +1559,14 @@ button {
   font-size: 13px;
 }
 
+.drawer-score .score-ring strong {
+  display: block;
+  margin: 0 0 5px;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .drawer-score p {
   margin: 3px 0 0;
   color: #85969a;

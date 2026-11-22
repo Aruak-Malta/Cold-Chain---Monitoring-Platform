@@ -350,6 +350,65 @@ export async function fetchAccountTelemetry(
     return [];
   }
   const client = getSupabaseClient();
+  const numericEquipmentIds = equipmentIds
+    .map((id) => Number(id))
+    .filter((id) => Number.isSafeInteger(id));
+
+  if (numericEquipmentIds.length) {
+    const { data: rpcData, error: rpcError } = await client.rpc(
+      "cold_ghost_fetch_telemetry",
+      { p_equipment_ids: numericEquipmentIds },
+    );
+
+    if (!rpcError) {
+      if (Array.isArray(rpcData)) {
+        if (import.meta.env.DEV) {
+          console.debug(`[telemetria] RPC leituras=${rpcData.length}`);
+        }
+        return rpcData.map((row) => {
+          if (!isRecord(row)) {
+            throw new Error("O Supabase retornou uma leitura de telemetria inválida.");
+          }
+          if (
+            typeof row.id_equipamento !== "number" &&
+            typeof row.id_equipamento !== "string"
+          ) {
+            throw new Error("O Supabase retornou um equipamento de telemetria inválido.");
+          }
+          return {
+            id_equipamento: row.id_equipamento,
+            temperature: toNullableFiniteNumber(row.temperatura),
+            humidity: toNullableFiniteNumber(row.umidade),
+            current: toNullableFiniteNumber(row.corrente),
+            timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
+          };
+        });
+      }
+      if (isRecord(rpcData) && Array.isArray(rpcData.leituras)) {
+        return rpcData.leituras.map((row) => {
+          if (!isRecord(row)) {
+            throw new Error("O Supabase retornou uma leitura de telemetria inválida.");
+          }
+          if (
+            typeof row.id_equipamento !== "number" &&
+            typeof row.id_equipamento !== "string"
+          ) {
+            throw new Error("O Supabase retornou um equipamento de telemetria inválido.");
+          }
+          return {
+            id_equipamento: row.id_equipamento,
+            temperature: toNullableFiniteNumber(row.temperatura),
+            humidity: toNullableFiniteNumber(row.umidade),
+            current: toNullableFiniteNumber(row.corrente),
+            timestamp: typeof row.timestamp === "string" ? row.timestamp : null,
+          };
+        });
+      }
+    } else if (import.meta.env.DEV) {
+      console.debug(`[telemetria] RPC indisponível: ${rpcError.message}`);
+    }
+  }
+
   const grouped = await Promise.all(
     equipmentIds.map(async (equipmentId) => {
       const { data, error } = await client

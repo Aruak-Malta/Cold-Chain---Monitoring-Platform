@@ -1496,16 +1496,16 @@ button {
 }
 
 .score-ring strong {
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 800;
   line-height: 1;
-  margin: 0 0 7px;
+  margin: 0 0 5px;
 }
 
 .score-ring small {
   position: absolute;
   bottom: 8px;
-  left: 50%;
+  left: calc(50% + 8px);
   transform: translateX(-50%);
   color: #96a4a8;
   font-size: 7px;
